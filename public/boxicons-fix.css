@@ -1,0 +1,47 @@
+/* Boxicons Border Fix - Override all possible border sources */
+.bx,
+[class^='bx-'],
+[class*=' bx-'],
+i.bx,
+i[class^='bx-'],
+i[class*=' bx-'] {
+  border: 0 !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  outline: 0 !important;
+  outline-width: 0 !important;
+  outline-style: none !important;
+  outline-color: transparent !important;
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  text-decoration: none !important;
+  box-sizing: content-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.bx::before,
+.bx::after,
+[class^='bx-']::before,
+[class^='bx-']::after,
+[class*=' bx-']::before,
+[class*=' bx-']::after {
+  border: 0 !important;
+  outline: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Specific fix for continue watching and autoplay icons */
+.continue-watching-notice i,
+.autoplay-notice i {
+  border: 0 !important;
+  outline: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+}

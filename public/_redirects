@@ -1,0 +1,2 @@
+/api/*    /api/:splat   200   # giữ nguyên cho backend/API
+/*        /index.html   200   # mọi route khác fallback về index.html

@@ -1,0 +1,400 @@
+@use "../../scss/breakpoint" as *;
+
+.continue-watching-list {
+  &__carousel-wrapper {
+    position: relative;
+    padding: 0 60px;
+
+    @include tablet {
+      padding: 0 50px;
+    }
+
+    @include mobile {
+      padding: 0 15px;
+    }
+  }
+
+  &__carousel {
+    padding: 1.5rem 0 0.5rem;
+  }
+
+  .swiper-button-prev,
+  .swiper-button-next {
+    position: absolute;
+    top: 50%;
+    width: 50px;
+    height: 50px;
+    margin-top: -25px;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #fff;
+    transition: all 0.3s ease;
+    z-index: 10;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &::after {
+      display: none;
+    }
+
+    i {
+      color: #fff;
+      font-size: 1.8rem;
+    }
+
+    &:hover {
+      background: rgba(229, 9, 20, 0.9);
+      border-color: rgba(255, 61, 113, 0.5);
+      transform: scale(1.1);
+      box-shadow: 0 4px 16px rgba(229, 9, 20, 0.4);
+    }
+
+    &.swiper-button-disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.8);
+        transform: scale(1);
+        box-shadow: none;
+      }
+    }
+
+    @include mobile {
+      display: none;
+    }
+  }
+
+  .swiper-button-prev {
+    left: 0;
+  }
+
+  .swiper-button-next {
+    right: 0;
+  }
+
+  .swiper-slide {
+    width: 15%;
+    padding: 0 0.5rem;
+    transition: all 0.3s ease;
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        z-index: 10;
+      }
+    }
+
+    @include tablet {
+      width: 30%;
+      padding: 0 0.4rem;
+    }
+
+    @include mobile {
+      width: 40%;
+      padding: 0 0.35rem;
+    }
+  }
+
+  &__card {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 16px;
+    cursor: pointer;
+    -webkit-touch-callout: none;
+    user-select: none;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        transform: translateY(-12px) scale(1.03);
+        z-index: 100;
+
+        .continue-watching-list__poster {
+          box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),
+            0 0 0 3px rgba(255, 61, 113, 0.4),
+            0 8px 32px rgba(229, 9, 20, 0.3);
+        }
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid #e50914;
+      outline-offset: 3px;
+    }
+  }
+
+  &__card--menu-open {
+    transform: translateY(-12px) scale(1.03);
+    z-index: 100;
+
+    .continue-watching-list__poster {
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),
+        0 0 0 3px rgba(255, 61, 113, 0.4),
+        0 8px 32px rgba(229, 9, 20, 0.3);
+    }
+  }
+
+  &__poster {
+    position: relative;
+    aspect-ratio: 2 / 3;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4),
+      0 2px 8px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+    img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+  }
+
+  &__progress-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+
+    span {
+      display: block;
+      height: 100%;
+      border-radius: 0 999px 999px 0;
+      background: linear-gradient(90deg, #e50914, #ff3d71);
+    }
+  }
+
+  &__meta {
+    padding: 0;
+  }
+
+  &__title {
+    display: -webkit-box;
+    margin: 0;
+    min-height: 2.8em;
+    overflow: hidden;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    transition: all 0.3s ease;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  &__episode-text {
+    margin: 0.35rem 0 0.25rem;
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.84rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__progress-text {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.85rem;
+    line-height: 1.35;
+  }
+
+  &__context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 180px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 61, 113, 0.35);
+    border-radius: 12px;
+    background: rgba(12, 12, 18, 0.96);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+
+    button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font: inherit;
+      padding: 0.8rem 1rem;
+      text-align: left;
+      transition: background 0.2s ease, color 0.2s ease;
+
+      &:hover,
+      &:focus-visible {
+        background: rgba(229, 9, 20, 0.18);
+        color: #ff6b8a;
+        outline: none;
+      }
+
+      .bx-trash {
+        color: #ff6b8a;
+        font-size: 1.05rem;
+      }
+    }
+  }
+
+  &__skeleton-track {
+    display: flex;
+    gap: 12px;
+    overflow: hidden;
+    padding: 1.5rem 0 0.5rem;
+
+    @media (min-width: 640px) {
+      gap: 15px;
+    }
+
+    @media (min-width: 768px) {
+      gap: 20px;
+    }
+  }
+
+  &__skeleton-card {
+    flex: 0 0 auto;
+    width: 100%;
+    opacity: 0.75;
+
+    @media (min-width: 640px) {
+      width: calc(50% - 7.5px);
+    }
+
+    @media (min-width: 768px) {
+      width: calc(33.333333% - 13.333333px);
+    }
+
+    @media (min-width: 1024px) {
+      width: calc(25% - 15px);
+    }
+
+    @media (min-width: 1280px) {
+      width: calc(20% - 16px);
+    }
+  }
+
+  &__skeleton-poster,
+  &__skeleton-title,
+  &__skeleton-episode,
+  &__skeleton-progress {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.06);
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        110deg,
+        transparent 0%,
+        transparent 40%,
+        rgba(255, 255, 255, 0.1) 50%,
+        transparent 60%,
+        transparent 100%
+      );
+      transform: translateX(-100%);
+      animation: shimmer 3s infinite;
+    }
+  }
+
+  &__skeleton-poster {
+    aspect-ratio: 2 / 3;
+    border-radius: 16px;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4),
+      0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  &__skeleton-title {
+    width: 90%;
+    height: 2.8em;
+    border-radius: 8px;
+    margin-bottom: 0.55rem;
+  }
+
+  &__skeleton-episode {
+    width: 78%;
+    height: 0.85rem;
+    border-radius: 999px;
+    margin-bottom: 0.45rem;
+  }
+
+  &__skeleton-progress {
+    width: 58%;
+    height: 0.85rem;
+    border-radius: 999px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 12.5%;
+      padding: 0 0.6rem;
+    }
+  }
+}
+
+@media (min-width: 1440px) and (max-width: 1919px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 14%;
+    }
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 16.66%;
+    }
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 25%;
+    }
+  }
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 33.33%;
+    }
+  }
+}
+
+@media (min-width: 480px) and (max-width: 599px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 45%;
+    }
+  }
+}
+
+@media (max-width: 479px) {
+  .continue-watching-list {
+    .swiper-slide {
+      width: 50%;
+      padding: 0 0.25rem;
+    }
+  }
+}

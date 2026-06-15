@@ -1,0 +1,51 @@
+{
+  "productName": "O Phim",
+  "version": "0.4.5",
+  "identifier": "com.ophim.desktop",
+  "build": {
+    "frontendDist": "../build",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "cross-env BROWSER=none react-scripts start",
+    "beforeBuildCommand": "cross-env NODE_OPTIONS=--openssl-legacy-provider react-scripts build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "O Phim",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "dmg", "appimage", "deb"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/TungLT159/app-o-phim/releases/latest/download/updater.json"
+      ]
+    },
+    "store": {},
+    "shell": {
+      "open": true,
+      "sidecar": true
+    }
+  }
+}

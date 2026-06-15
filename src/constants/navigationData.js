@@ -1,0 +1,51 @@
+// Navigation data for header menu
+export const headerNav = [
+  {
+    display: "Danh sách",
+    submenu: [
+      { display: "Phim mới", path: "/danh-sach/phim-moi" },
+      { display: "Phim bộ", path: "/danh-sach/phim-bo" },
+      { display: "Phim lẻ", path: "/danh-sach/phim-le" },
+      { display: "TV Shows", path: "/danh-sach/tv-shows" },
+      { display: "Hoạt hình", path: "/danh-sach/hoat-hinh" },
+      { display: "Phim Vietsub", path: "/danh-sach/phim-vietsub" },
+      { display: "Phim Thuyết minh", path: "/danh-sach/phim-thuyet-minh" },
+      { display: "Phim bộ đang chiếu", path: "/danh-sach/phim-bo-dang-chieu" },
+      { display: "Phim bộ hoàn thành", path: "/danh-sach/phim-bo-hoan-thanh" },
+      { display: "Phim sắp chiếu", path: "/danh-sach/phim-sap-chieu" },
+      { display: "Subteam", path: "/danh-sach/subteam" },
+      { display: "Phim chiếu rạp", path: "/danh-sach/phim-chieu-rap" },
+    ],
+  },
+  {
+    display: "Quốc Gia",
+    submenu: [
+      { display: "Việt Nam", path: "/quoc-gia/viet-nam" },
+      { display: "Hàn Quốc", path: "/quoc-gia/han-quoc" },
+      { display: "Âu Mỹ", path: "/quoc-gia/au-my" },
+      { display: "Nhật Bản", path: "/quoc-gia/nhat-ban" },
+      { display: "Trung Quốc", path: "/quoc-gia/trung-quoc" },
+    ],
+  },
+  {
+    display: "Thể Loại",
+    submenu: [
+      { display: "Hành Động", path: "/the-loai/hanh-dong" },
+      { display: "Tình Cảm", path: "/the-loai/tinh-cam" },
+      { display: "Hài Hước", path: "/the-loai/hai-huoc" },
+      { display: "Tâm Lý", path: "/the-loai/tam-ly" },
+      { display: "Hình Sự", path: "/the-loai/hinh-su" },
+      { display: "Chiến Tranh", path: "/the-loai/chien-tranh" },
+      { display: "Võ Thuật", path: "/the-loai/vo-thuat" },
+      { display: "Viễn Tưởng", path: "/the-loai/vien-tuong" },
+      { display: "Phiêu Lưu", path: "/the-loai/phieu-luu" },
+      { display: "Khoa Học", path: "/the-loai/khoa-hoc" },
+      { display: "Kinh Dị", path: "/the-loai/kinh-di" },
+      { display: "Thần Thoại", path: "/the-loai/than-thoai" },
+      { display: "Tài Liệu", path: "/the-loai/tai-lieu" },
+      { display: "Gia Đình", path: "/the-loai/gia-dinh" },
+      { display: "Chính Kịch", path: "/the-loai/chinh-kich" },
+      { display: "Học Đường", path: "/the-loai/hoc-duong" },
+    ],
+  },
+];

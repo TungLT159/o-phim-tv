@@ -1,0 +1,65 @@
+@use "../../scss/" as *;
+
+.similar-movies {
+    width: 100%;
+
+    .swiper-slide {
+        width: 15%;
+
+        @include tablet {
+            width: 30%;
+        }
+
+        @include mobile {
+            width: 40%;
+        }
+    }
+}
+
+.similar-movies-loading {
+    @include flex(center, center);
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 4rem 2rem;
+    text-align: center;
+
+    i {
+        font-size: 4rem;
+        color: $main-color;
+        animation: spin 1s linear infinite;
+    }
+
+    p {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.4rem;
+        margin: 0;
+    }
+}
+
+.similar-movies-empty {
+    @include flex(center, center);
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 4rem 2rem;
+    text-align: center;
+
+    i {
+        font-size: 6rem;
+        color: rgba(255, 255, 255, 0.3);
+    }
+
+    p {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.4rem;
+        margin: 0;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}

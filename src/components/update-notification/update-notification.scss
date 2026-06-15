@@ -1,0 +1,56 @@
+@use "../../scss/" as *;
+
+.update-notification {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 10000;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  max-width: min(92vw, 520px);
+  padding: 1rem;
+  border: 1px solid rgba(255, 61, 113, 0.28);
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(16, 16, 20, 0.96);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+
+  &__content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.2rem;
+
+    span {
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.9rem;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  button {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.55rem 0.9rem;
+    color: #fff;
+    background: #ff3d71;
+    cursor: pointer;
+  }
+
+  &__dismiss {
+    background: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  @include mobile {
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
