@@ -1,31 +1,324 @@
-// TV Focus styles for Android TV / Google TV
-*:focus-visible {
-  outline: 3px solid #ff6b35 !important;
-  outline-offset: 3px;
-  border-radius: 4px;
-}
+@use "../scss/" as *;
 
-// Larger touch targets for TV
-@media (orientation: landscape) and (min-width: 1280px) {
+/* ================= GOOGLE TV / ANDROID TV OPTIMIZATION ================= */
+
+// Base TV scaling
+@include tv {
+  // Overscan safe zone
+  .container {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+    max-width: 100%;
+  }
+
+  .section {
+    padding: 0 2.5rem;
+  }
+
+  // Larger base font
+  html {
+    font-size: 120%;
+  }
+
   body {
     font-size: 18px;
+    line-height: 1.6;
   }
 
-  button, a, [tabindex] {
-    min-height: 48px;
-    font-size: 18px;
+  // Header: taller, larger nav
+  .header {
+    height: 100px;
+
+    &.shrink {
+      height: 75px;
+    }
+
+    &__wrap {
+      padding: 0 2.5rem;
+    }
+
+    .logo {
+      img {
+        height: 50px;
+      }
+      a {
+        font-size: 1.5rem;
+      }
+    }
+
+    &__nav .nav-item {
+      font-size: 1.1rem;
+      padding: 0 1.2rem;
+
+      > span {
+        padding: 1rem 0;
+      }
+    }
   }
 
-  .header__nav .nav-item {
-    font-size: 16px;
+  // Hero slide: taller for TV
+  .hero-slide {
+    min-height: 70vh;
+    margin-bottom: 5rem;
+
+    &__content {
+      padding: 0 3rem;
+    }
+
+    &__title {
+      font-size: 4rem;
+    }
+
+    &__description {
+      font-size: 1.2rem;
+      max-width: 60%;
+    }
+
+    .swiper-button-prev,
+    .swiper-button-next {
+      width: 70px;
+      height: 70px;
+
+      &::after {
+        font-size: 28px;
+      }
+    }
+  }
+
+  // Movie grid: more columns, larger cards
+  .movie-grid {
+    gap: 1.5rem;
   }
 
   .movie-card {
-    min-height: 48px;
+    border-radius: 20px;
+    margin-bottom: 1.5rem;
+
+    &__title {
+      font-size: 1.1rem;
+      margin-top: 0.85rem;
+    }
+
+    &__badge {
+      padding: 6px 14px;
+      font-size: 0.8rem;
+
+      &.quality-badge {
+        top: 14px;
+        left: 14px;
+      }
+      &.rating-badge {
+        top: 14px;
+        right: 14px;
+      }
+    }
+
+    &__info {
+      padding: 14px;
+      span {
+        font-size: 0.85rem;
+      }
+    }
   }
 
-  input, select, textarea {
-    font-size: 18px;
-    min-height: 48px;
+  // Buttons: larger
+  .btn {
+    padding: 0.8rem 2.2rem;
+    font-size: 1.1rem;
+    min-height: 52px;
+  }
+
+  // Episode list
+  .episode-scroll {
+    &__item {
+      font-size: 1.1rem;
+      padding: 0.9rem 1.4rem;
+      min-width: 60px;
+      min-height: 52px;
+    }
+  }
+
+  // Download button
+  .download-button {
+    font-size: 1.1rem;
+    padding: 0.8rem 2rem;
+  }
+
+  // Cast list
+  .cast-item {
+    font-size: 1rem;
+  }
+
+  // Ranking section
+  .ranking-section {
+    &__item {
+      font-size: 1.1rem;
+      padding: 1rem;
+    }
+  }
+
+  // Continue watching
+  .continue-watching {
+    &__item {
+      min-height: 60px;
+    }
+  }
+
+  // Search input
+  .header__search {
+    input {
+      font-size: 1.1rem;
+      min-height: 48px;
+      padding: 0.6rem 1.2rem;
+    }
+  }
+
+  // Video player controls
+  .custom-video-player {
+    &__controls {
+      padding: 1rem 1.5rem;
+    }
+
+    &__btn {
+      font-size: 1.3rem;
+      min-width: 48px;
+      min-height: 48px;
+    }
+
+    &__time {
+      font-size: 1rem;
+    }
+  }
+
+  // Footer
+  .footer {
+    font-size: 1rem;
+    padding: 2.5rem;
+  }
+
+  // Page header
+  .page-header {
+    font-size: 1.5rem;
+    padding: 1rem 0;
+  }
+
+  // Update notification
+  .update-notification {
+    font-size: 1rem;
+    padding: 1rem 1.5rem;
+  }
+}
+
+/* ================= TV FOCUS INDICATORS ================= */
+
+// Global focus ring for TV remote
+*:focus-visible {
+  outline: 4px solid #ff6b35 !important;
+  outline-offset: 4px;
+  border-radius: 8px;
+  transition: outline 0.1s ease, transform 0.2s ease;
+}
+
+// Enhanced focus for cards and interactive elements
+@include tv {
+  // Card focus on TV - show overlay like hover does on desktop
+  .movie-card:focus-visible {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),
+                0 0 0 4px rgba(255, 107, 53, 0.6);
+
+    &::before {
+      opacity: 1;
+    }
+
+    .btn {
+      transform: scale(1.15);
+      opacity: 1;
+    }
+
+    &__info {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    &__badge {
+      transform: scale(1.1);
+    }
+  }
+
+  // Nav item focus
+  .nav-item:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 6px;
+    border-radius: 8px;
+    background: rgba(255, 107, 53, 0.15);
+  }
+
+  // Button focus
+  button:focus-visible,
+  .btn:focus-visible {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
+  }
+
+  // Episode item focus
+  .episode-scroll__item:focus-visible {
+    transform: scale(1.08);
+    background: linear-gradient(135deg, #e50914 0%, #ff3d71 100%) !important;
+    box-shadow: 0 0 24px rgba(229, 9, 20, 0.6);
+  }
+
+  // Link focus
+  a:focus-visible {
+    .movie-card__title {
+      color: #ff6b35;
+    }
+  }
+
+  // Search input focus
+  input:focus-visible {
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.4);
+    border-color: #ff6b35;
+  }
+
+  // Swiper navigation focus
+  .swiper-button-prev:focus-visible,
+  .swiper-button-next:focus-visible {
+    transform: scale(1.15);
+    box-shadow: 0 0 24px rgba(255, 107, 53, 0.6);
+  }
+
+  // Remove hover-only overlays on TV (use focus instead)
+  .movie-card {
+    @media (hover: none) {
+      &__info {
+        opacity: 0;
+      }
+
+      .btn {
+        transform: scale(0);
+        opacity: 0;
+      }
+
+      &::before {
+        opacity: 0;
+      }
+    }
+  }
+
+  // Smooth scroll behavior for TV
+  html {
+    scroll-behavior: smooth;
+  }
+
+  // Scrollbar styling for TV
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 107, 53, 0.5);
+    border-radius: 6px;
   }
 }
