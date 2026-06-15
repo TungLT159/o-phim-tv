@@ -49,7 +49,7 @@ const TvSidebar = () => {
 
       <div className="tv-sidebar__inner">
         <div className="tv-sidebar__logo">
-          <Link to="/" tabIndex="0" aria-label="Trang chủ">
+          <Link to="/" tabIndex="-1" aria-label="Trang chủ">
             <img src={logo} alt="O Phim" />
             <span>Ổ Phim</span>
           </Link>

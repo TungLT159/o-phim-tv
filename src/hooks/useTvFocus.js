@@ -8,71 +8,53 @@ function getFocusable() {
 }
 
 function findHorizontal(elements, current, direction) {
+  // Try sibling first — most intuitive for row navigation
+  const sibling = direction === 'ArrowRight'
+    ? current.nextElementSibling
+    : current.previousElementSibling;
+
+  if (sibling && (sibling.matches?.(FOCUSABLE) || sibling.querySelector?.(FOCUSABLE))) {
+    return sibling.matches?.(FOCUSABLE) ? sibling : sibling.querySelector?.(FOCUSABLE);
+  }
+
+  // Fallback: spatial search within same row
   const rect = current.getBoundingClientRect();
   let best = null;
-  let bestScore = Infinity;
+  let bestGap = Infinity;
   const sign = direction === 'ArrowRight' ? 1 : -1;
 
-  // Phase 1: elements whose Y-center overlaps with current element
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
-    if (el.offsetParent === null) return;
     const r = el.getBoundingClientRect();
 
     const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
     if (gap <= 0) return;
 
-    // Y-center falls within current element's Y range
+    // Y-center must overlap
     const targetMidY = r.top + r.height / 2;
-    if (targetMidY < rect.top || targetMidY > rect.bottom) return;
+    if (targetMidY < rect.top - 4 || targetMidY > rect.bottom + 4) return;
 
-    if (gap < bestScore) {
-      bestScore = gap;
+    if (gap < bestGap) {
+      bestGap = gap;
       best = el;
     }
   });
 
-  if (best) return best;
+  // Phase 2: closest in any row
+  if (!best) {
+    elements.forEach((el) => {
+      if (el === current || el === document.body) return;
+      const r = el.getBoundingClientRect();
 
-  // Phase 2: widen Y overlap by 1 element height
-  elements.forEach((el) => {
-    if (el === current || el === document.body) return;
-    if (el.offsetParent === null) return;
-    const r = el.getBoundingClientRect();
+      const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
+      if (gap <= 0) return;
 
-    const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
-    if (gap <= 0) return;
-
-    const targetMidY = r.top + r.height / 2;
-    const dy = Math.min(
-      Math.abs(targetMidY - rect.top),
-      Math.abs(targetMidY - rect.bottom)
-    );
-    if (dy > rect.height * 2) return;
-
-    const score = gap + dy * 0.5;
-    if (score < bestScore) {
-      bestScore = score;
-      best = el;
-    }
-  });
-
-  if (best) return best;
-
-  // Phase 3 (horizontal only): closest element in direction, any Y
-  elements.forEach((el) => {
-    if (el === current || el === document.body) return;
-    if (el.offsetParent === null) return;
-    const r = el.getBoundingClientRect();
-
-    const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
-    if (gap <= 0) return;
-
-    if (gap < bestScore) {
-      bestScore = gap;
-      best = el;
-    }
-  });
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = el;
+      }
+    });
+  }
 
   return best;
 }
@@ -80,49 +62,44 @@ function findHorizontal(elements, current, direction) {
 function findVertical(elements, current, direction) {
   const rect = current.getBoundingClientRect();
   let best = null;
-  let bestScore = Infinity;
+  let bestGap = Infinity;
   const sign = direction === 'ArrowDown' ? 1 : -1;
 
-  // Phase 1: elements whose X-center overlaps with current element
+  // Phase 1: X-center overlaps with current element
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
-    if (el.offsetParent === null) return;
     const r = el.getBoundingClientRect();
 
     const gap = sign > 0 ? (r.top - rect.bottom) : (rect.top - r.bottom);
     if (gap <= 0) return;
 
-    // X-center falls within current element's X range
     const targetMidX = r.left + r.width / 2;
-    if (targetMidX < rect.left || targetMidX > rect.right) return;
+    if (targetMidX < rect.left - 4 || targetMidX > rect.right + 4) return;
 
-    if (gap < bestScore) {
-      bestScore = gap;
+    if (gap < bestGap) {
+      bestGap = gap;
       best = el;
     }
   });
 
   if (best) return best;
 
-  // Phase 2: widen X overlap by 1 element width
+  // Phase 2: widen X overlap by 2x width
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
-    if (el.offsetParent === null) return;
     const r = el.getBoundingClientRect();
 
     const gap = sign > 0 ? (r.top - rect.bottom) : (rect.top - r.bottom);
     if (gap <= 0) return;
 
     const targetMidX = r.left + r.width / 2;
-    const dx = Math.min(
-      Math.abs(targetMidX - rect.left),
-      Math.abs(targetMidX - rect.right)
-    );
-    if (dx > rect.width * 2) return;
+    const curMidX = rect.left + rect.width / 2;
+    const dx = Math.abs(targetMidX - curMidX);
+    if (dx > rect.width * 2.5) return;
 
-    const score = gap + dx * 0.5;
-    if (score < bestScore) {
-      bestScore = score;
+    const score = gap + dx;
+    if (score < bestGap) {
+      bestGap = score;
       best = el;
     }
   });
