@@ -181,7 +181,30 @@
 
 // Enhanced focus for cards and interactive elements
 @include tv {
-  // Card focus on TV - show overlay like hover does on desktop
+  // Content row card focus on TV
+  .content-row__card:focus-visible {
+    transform: scale(1.12) !important;
+    z-index: 10;
+
+    .content-row__focus-ring {
+      opacity: 1;
+    }
+
+    .content-row__poster {
+      box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.6), 0 12px 32px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  // TV Hero focus
+  .tv-hero:focus-visible {
+    .tv-hero__play-btn {
+      box-shadow: 0 0 0 4px #ff6b35, 0 0 32px rgba(255, 107, 53, 0.4);
+      transform: scale(1.08);
+      background: $main-color;
+    }
+  }
+
+  // Card focus on TV - show overlay like hover does on desktop (for legacy movie-card)
   .movie-card:focus-visible {
     transform: translateY(-8px) scale(1.03);
     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),

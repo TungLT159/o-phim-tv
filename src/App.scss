@@ -144,22 +144,27 @@ iframe{
     padding: 0 2rem;
   }
 
-  // Hero slide takes full remaining width
-  .hero-slide {
-    min-height: 80vh;
+  .footer {
+    padding: 2rem 2rem 3rem;
+    margin-top: 4rem;
+  }
 
-    &__content {
-      padding: 0 2rem;
+  // TV Home page
+  .tv-home {
+    padding-top: 0;
+
+    .content-row:first-of-type {
+      margin-top: 2rem;
     }
   }
 
-  // Grid adjustments for sidebar offset
-  .movie-grid {
-    gap: 1.2rem;
+  // Detail page TV padding
+  .detail-page {
+    padding: 1.5rem 2.5rem 2rem;
   }
 
-  // Hide footer on TV (content is enough)
-  .footer {
-    padding: 2rem 2rem 3rem;
+  // Catalog page TV padding
+  .catalog-page {
+    padding: 1.5rem 2.5rem 2rem;
   }
 }
