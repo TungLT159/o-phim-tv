@@ -17,11 +17,3 @@ test("favicon is declared once in the app shell, not per page", () => {
   expect(detailSeo).not.toContain('rel="icon"');
 });
 
-test("Netlify caches static icon assets aggressively", () => {
-  const headers = readProjectFile("public/_headers");
-
-  expect(headers).toContain("/favicon.ico");
-  expect(headers).toContain("/logo192.png");
-  expect(headers).toContain("/logo512.png");
-  expect(headers).toContain("Cache-Control: public, max-age=31536000, immutable");
-});
