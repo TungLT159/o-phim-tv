@@ -3,6 +3,8 @@
  * Quản lý lịch sử xem phim với Electron storage hoặc localStorage fallback
  */
 
+import { watchHistoryBridge, isTauri } from '../tauri-bridge';
+
 const WATCH_HISTORY_KEY = 'ophim_watch_history:v1';
 const LEGACY_WATCH_HISTORY_KEY = 'ophim_watch_history';
 const MAX_HISTORY_ITEMS = 100; // Giới hạn số lượng phim lưu
@@ -15,8 +17,10 @@ let writeInProgress = false;
 const listeners = new Set();
 
 const getElectronStorage = () => {
+  if (isTauri()) {
+    return watchHistoryBridge;
+  }
   const storage = typeof window !== 'undefined' ? window.ophimWatchHistoryStorage : null;
-
   if (
     storage &&
     typeof storage.read === 'function' &&
@@ -25,7 +29,6 @@ const getElectronStorage = () => {
   ) {
     return storage;
   }
-
   return null;
 };
 

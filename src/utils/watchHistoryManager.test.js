@@ -1,3 +1,15 @@
+jest.mock('../tauri-bridge', () => ({
+  watchHistoryBridge: {
+    read: jest.fn(),
+    write: jest.fn(),
+    clear: jest.fn(),
+  },
+  isTauri: jest.fn(() => false),
+  navigationBridge: {},
+  updatesBridge: {},
+  apiBridge: {},
+}));
+
 import * as watchHistoryManager from "./watchHistoryManager";
 
 const {
