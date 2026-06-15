@@ -12,7 +12,7 @@ jest.mock('../../tauri-bridge', () => ({
     back: () => undefined,
     forward: () => undefined,
     reload: () => undefined,
-    getState: jest.fn(() => Promise.resolve({ canGoBack: true, canGoForward: false })),
+    getState: () => Promise.resolve({ canGoBack: true, canGoForward: false }),
     onStateChange: () => () => undefined,
   },
   isTauri: () => false,

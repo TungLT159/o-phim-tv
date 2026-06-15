@@ -96,7 +96,9 @@ const Header = () => {
   };
 
   const handleDesktopForward = async () => {
-    await navigationBridge.forward();
+    if (desktopNavigation.canGoForward) {
+      await navigationBridge.forward();
+    }
   };
 
   const handleDesktopReload = async () => {
