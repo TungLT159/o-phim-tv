@@ -8,15 +8,21 @@ import Footer from "./components/footer/Footer";
 import UpdateNotification from "./components/update-notification/UpdateNotification";
 import Routes from "./config/Routes";
 import { useTvFocus } from './hooks/useTvFocus';
+import { isTauri } from './tauri-bridge';
 
 function App() {
   useTvFocus();
+
+  const isTv = isTauri();
+
   return (
     <BrowserRouter>
-      <Header />
-      <UpdateNotification />
-      <Routes />
-      <Footer />
+      <div className={isTv ? 'tv-layout' : ''}>
+        <Header />
+        <UpdateNotification />
+        <Routes />
+        <Footer />
+      </div>
     </BrowserRouter>
   );
 }

@@ -3,14 +3,17 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./header.scss";
 import logo from "../../assets/logo.png";
 import { headerNav } from "../../constants/navigationData";
-import { navigationBridge } from '../../tauri-bridge';
+import { navigationBridge, isTauri } from '../../tauri-bridge';
 import SearchSuggestions from "./SearchSuggestions";
 import useHeaderSearch from "./useHeaderSearch";
+import TvSidebar from "./TvSidebar";
 
 const Header = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const headerRef = useRef(null);
+
+  const isTv = isTauri();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState(null);
@@ -108,6 +111,10 @@ const Header = () => {
   const toggleSubmenu = (index) => {
     setOpenSubmenu(openSubmenu === index ? null : index);
   };
+
+  if (isTv) {
+    return <TvSidebar />;
+  }
 
   return (
     <>

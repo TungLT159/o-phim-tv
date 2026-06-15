@@ -127,3 +127,39 @@ iframe{
 }
 
 @import './scss/tv-focus';
+
+/* ================= TV SIDEBAR LAYOUT ================= */
+.tv-layout {
+  margin-left: 220px;
+
+  .header {
+    display: none;
+  }
+
+  .container {
+    max-width: 100%;
+  }
+
+  .section {
+    padding: 0 2rem;
+  }
+
+  // Hero slide takes full remaining width
+  .hero-slide {
+    min-height: 80vh;
+
+    &__content {
+      padding: 0 2rem;
+    }
+  }
+
+  // Grid adjustments for sidebar offset
+  .movie-grid {
+    gap: 1.2rem;
+  }
+
+  // Hide footer on TV (content is enough)
+  .footer {
+    padding: 2rem 2rem 3rem;
+  }
+}

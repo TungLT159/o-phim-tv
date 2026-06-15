@@ -25,37 +25,6 @@
     line-height: 1.6;
   }
 
-  // Header: taller, larger nav
-  .header {
-    height: 100px;
-
-    &.shrink {
-      height: 75px;
-    }
-
-    &__wrap {
-      padding: 0 2.5rem;
-    }
-
-    .logo {
-      img {
-        height: 50px;
-      }
-      a {
-        font-size: 1.5rem;
-      }
-    }
-
-    &__nav .nav-item {
-      font-size: 1.1rem;
-      padding: 0 1.2rem;
-
-      > span {
-        padding: 1rem 0;
-      }
-    }
-  }
-
   // Hero slide: taller for TV
   .hero-slide {
     min-height: 70vh;
@@ -164,15 +133,6 @@
     }
   }
 
-  // Search input
-  .header__search {
-    input {
-      font-size: 1.1rem;
-      min-height: 48px;
-      padding: 0.6rem 1.2rem;
-    }
-  }
-
   // Video player controls
   .custom-video-player {
     &__controls {
@@ -246,12 +206,35 @@
     }
   }
 
-  // Nav item focus
-  .nav-item:focus-visible {
-    outline: 3px solid #ff6b35;
-    outline-offset: 6px;
+  // TV Sidebar focus styles
+  .tv-sidebar__item:focus-visible {
+    background: rgba(255, 255, 255, 0.1) !important;
+    outline: none !important;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 28px;
+      background: #ff6b35;
+      border-radius: 0 3px 3px 0;
+    }
+  }
+
+  .tv-sidebar__subitem:focus-visible {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    padding-left: 58px !important;
+    outline: none !important;
+  }
+
+  .tv-sidebar__logo a:focus-visible {
+    outline: 3px solid #ff6b35 !important;
+    outline-offset: 4px;
     border-radius: 8px;
-    background: rgba(255, 107, 53, 0.15);
   }
 
   // Button focus
