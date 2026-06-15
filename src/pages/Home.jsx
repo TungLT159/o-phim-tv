@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { OutlineButton } from "../components/button/Button";
 import HeroSlide from "../components/hero-slide/HeroSlide";
@@ -12,52 +12,61 @@ import tmdbApi from "../api/tmdbApi";
 import { Helmet } from "react-helmet";
 import { isTauri } from "../tauri-bridge";
 
+const TV_ROWS = [
+  { title: "Phim mới cập nhật", type: movieType.phimMoi },
+  { title: "Phim bộ", type: movieType.phimBo },
+  { title: "Phim chiếu rạp", type: movieType.phimChieuRap },
+  { title: "Phim lẻ", type: movieType.phimLe },
+  { title: "Hoạt hình", type: movieType.phimHoatHinh },
+  { title: "TV Shows", type: "tv-shows" },
+  { title: "Phim Vietsub", type: "phim-vietsub" },
+  { title: "Phim Thuyết minh", type: "phim-thuyet-minh" },
+  { title: "Phim bộ đang chiếu", type: "phim-bo-dang-chieu" },
+  { title: "Phim bộ hoàn thành", type: "phim-bo-hoan-thanh" },
+  { title: "Phim sắp chiếu", type: "phim-sap-chieu" },
+];
+
 function TvHome() {
+  const heroRef = useRef(null);
   const [heroMovies, setHeroMovies] = useState([]);
-  const [newMovies, setNewMovies] = useState([]);
-  const [seriesMovies, setSeriesMovies] = useState([]);
-  const [singleMovies, setSingleMovies] = useState([]);
-  const [cartoonMovies, setCartoonMovies] = useState([]);
-  const [theaterMovies, setTheaterMovies] = useState([]);
+  const [rows, setRows] = useState({});
 
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [res1, res2, res3, res4, res5] = await Promise.all([
-          tmdbApi.getMoviesList(movieType.phimMoi, { page: 1, limit: 15 }),
-          tmdbApi.getMoviesList(movieType.phimBo, { page: 1, limit: 15 }),
-          tmdbApi.getMoviesList(movieType.phimLe, { page: 1, limit: 15 }),
-          tmdbApi.getMoviesList(movieType.phimHoatHinh, { page: 1, limit: 15 }),
-          tmdbApi.getMoviesList(movieType.phimChieuRap, { page: 1, limit: 15 }),
-        ]);
+    // Auto-focus hero on mount
+    setTimeout(() => heroRef.current?.focus(), 200);
+  }, []);
 
-        const newItems = res1.data?.items || [];
-        setHeroMovies(newItems.slice(0, 6));
-        setNewMovies(newItems);
-        setSeriesMovies(res2.data?.items || []);
-        setSingleMovies(res3.data?.items || []);
-        setCartoonMovies(res4.data?.items || []);
-        setTheaterMovies(res5.data?.items || []);
-      } catch (e) {
-        console.error("TV home fetch error:", e);
-      }
-    };
-    fetchAll();
+  useEffect(() => {
+    const types = TV_ROWS.map(r => r.type);
+    Promise.all(types.map(t => tmdbApi.getMoviesList(t, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } }))))
+      .then(results => {
+        const map = {};
+        const all = results[0].data?.items || [];
+        setHeroMovies(all.slice(0, 6));
+        TV_ROWS.forEach((r, i) => {
+          map[r.type] = results[i].data?.items || [];
+        });
+        setRows(map);
+      })
+      .catch(() => {});
   }, []);
 
   return (
-    <div className="tv-home">
+    <div className="tv-home" ref={heroRef} tabIndex="-1">
       <Helmet>
         <title>O Phim - TV</title>
       </Helmet>
 
       <TvHero items={heroMovies} />
 
-      <ContentRow title="Phim mới cập nhật" items={newMovies} rowId="new" />
-      <ContentRow title="Phim bộ" items={seriesMovies} rowId="series" />
-      <ContentRow title="Phim chiếu rạp" items={theaterMovies} rowId="theater" />
-      <ContentRow title="Phim lẻ" items={singleMovies} rowId="single" />
-      <ContentRow title="Hoạt hình" items={cartoonMovies} rowId="cartoon" />
+      {TV_ROWS.map(row => (
+        <ContentRow
+          key={row.type}
+          title={row.title}
+          items={rows[row.type] || []}
+          rowId={row.type}
+        />
+      ))}
     </div>
   );
 }
@@ -85,7 +94,6 @@ export default function Home() {
           .filter((m) => m.view || m.views || m.view_count)
           .sort((a, b) => (b.view || b.views || b.view_count || 0) - (a.view || a.views || a.view_count || 0))
           .slice(0, 10);
-
         if (!viewed.length) {
           viewed = [...movies]
             .filter((m) => m.tmdb?.popularity)
@@ -129,47 +137,15 @@ export default function Home() {
       </Helmet>
 
       <HeroSlide />
-
-      <div className="container">
-        <div className="ranking-sections">
-          <RankingSection title="Top Phim Đánh Giá Cao" movies={topRatedMovies} icon="bx bxs-star" type="Theo điểm TMDB" />
-          <RankingSection title="Top Phim Xem Nhiều" movies={topViewedMovies} icon="bx bxs-hot" type="Theo lượt xem" />
-        </div>
-      </div>
-
+      <div className="container"><div className="ranking-sections">
+        <RankingSection title="Top Phim Đánh Giá Cao" movies={topRatedMovies} icon="bx bxs-star" type="Theo điểm TMDB" />
+        <RankingSection title="Top Phim Xem Nhiều" movies={topViewedMovies} icon="bx bxs-hot" type="Theo lượt xem" />
+      </div></div>
       <ContinueWatchingList />
-
-      <div className="section mb-3">
-        <div className="section__header mb-2">
-          <h2>Phim chiếu rạp</h2>
-          <Link to={`/danh-sach/${movieType.phimChieuRap}`}><OutlineButton>Xem thêm</OutlineButton></Link>
-        </div>
-        <MovieList category={category.movie} type={movieType.phimChieuRap} />
-      </div>
-
-      <div className="section mb-3">
-        <div className="section__header mb-2">
-          <h2>Phim mới</h2>
-          <Link to={`/danh-sach/${movieType.phimMoi}`}><OutlineButton>Xem thêm</OutlineButton></Link>
-        </div>
-        <MovieList category={category.movie} type={movieType.phimMoi} />
-      </div>
-
-      <div className="section mb-3">
-        <div className="section__header mb-2">
-          <h2>Phim hoạt hình</h2>
-          <Link to={`/danh-sach/${movieType.phimHoatHinh}`}><OutlineButton>Xem thêm</OutlineButton></Link>
-        </div>
-        <MovieList category={category.movie} type={movieType.phimHoatHinh} />
-      </div>
-
-      <div className="section mb-3">
-        <div className="section__header mb-2">
-          <h2>Phim lẻ</h2>
-          <Link to={`/danh-sach/${movieType.phimLe}`}><OutlineButton>Xem thêm</OutlineButton></Link>
-        </div>
-        <MovieList category={category.movie} type={movieType.phimLe} />
-      </div>
+      <div className="section mb-3"><div className="section__header mb-2"><h2>Phim chiếu rạp</h2><Link to={`/danh-sach/${movieType.phimChieuRap}`}><OutlineButton>Xem thêm</OutlineButton></Link></div><MovieList category={category.movie} type={movieType.phimChieuRap} /></div>
+      <div className="section mb-3"><div className="section__header mb-2"><h2>Phim mới</h2><Link to={`/danh-sach/${movieType.phimMoi}`}><OutlineButton>Xem thêm</OutlineButton></Link></div><MovieList category={category.movie} type={movieType.phimMoi} /></div>
+      <div className="section mb-3"><div className="section__header mb-2"><h2>Phim hoạt hình</h2><Link to={`/danh-sach/${movieType.phimHoatHinh}`}><OutlineButton>Xem thêm</OutlineButton></Link></div><MovieList category={category.movie} type={movieType.phimHoatHinh} /></div>
+      <div className="section mb-3"><div className="section__header mb-2"><h2>Phim lẻ</h2><Link to={`/danh-sach/${movieType.phimLe}`}><OutlineButton>Xem thêm</OutlineButton></Link></div><MovieList category={category.movie} type={movieType.phimLe} /></div>
     </div>
   );
 }

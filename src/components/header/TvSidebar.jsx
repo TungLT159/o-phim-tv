@@ -65,7 +65,7 @@ const TvSidebar = () => {
             <span>Trang chủ</span>
           </Link>
 
-          {headerNav.map((category, catIdx) => (
+          {headerNav.filter(c => c.display !== 'Danh sách').map((category, catIdx) => (
             <div
               key={category.display}
               className={`tv-sidebar__category ${focusedCategory === catIdx && expanded ? 'tv-sidebar__category--expanded' : ''} ${isActive(catIdx) ? 'tv-sidebar__category--active' : ''}`}
