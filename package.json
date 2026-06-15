@@ -3,7 +3,6 @@
   "version": "0.4.5",
   "private": true,
   "dependencies": {
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
@@ -28,9 +27,8 @@
     "web-vitals": "^5.2.0"
   },
   "scripts": {
-    "start": "node scripts/start-dev.js",
     "start:react": "cross-env NODE_OPTIONS=--openssl-legacy-provider BROWSER=none react-scripts start",
-    "serve": "node server.js",
+    "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider BROWSER=none react-scripts start",
     "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider react-scripts build",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
