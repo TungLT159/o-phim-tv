@@ -1,136 +1,123 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiConfig from '../../api/apiConfig';
+import { Autoplay } from 'swiper/modules';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import tmdbApi, { movieType } from '../../api/tmdbApi';
+import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
+import axiosClient from '../../api/axiosClient';
 import './tv-hero.scss';
 
-const heroPoster = (item) => {
-  if (item.thumb_url) return `https://img.ophim.live/uploads/movies/${item.thumb_url}`;
-  if (item.poster_url) return item.poster_url;
-  return '/poster-mau.png';
-};
-
-const TvHero = ({ items = [] }) => {
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [focused, setFocused] = useState(false);
+const HeroItem = ({ item }) => {
   const navigate = useNavigate();
-
-  const activeItem = items[activeIdx] || null;
-
-  const next = useCallback(() => {
-    if (items.length > 1) {
-      setActiveIdx((prev) => (prev + 1) % items.length);
-    }
-  }, [items.length]);
-
-  const prev = useCallback(() => {
-    if (items.length > 1) {
-      setActiveIdx((prev) => (prev - 1 + items.length) % items.length);
-    }
-  }, [items.length]);
+  const [movie, setMovie] = useState(null);
+  const [backdropUrl, setBackdropUrl] = useState('');
+  const [overview, setOverview] = useState('');
 
   useEffect(() => {
-    if (items.length <= 1 || focused) return;
-    const timer = setInterval(next, 8000);
-    return () => clearInterval(timer);
-  }, [items.length, focused, next]);
+    if (!item.slug) return;
+    axiosClient
+      .get(`https://ophim1.com/v1/api/phim/${item.slug}`)
+      .then((res) => setMovie(res.data))
+      .catch(() => {});
+  }, [item.slug]);
 
-  // Keyboard navigation for remote
+  useEffect(() => {
+    if (!item?.tmdb) return;
+    fetchTMDBImages(item.tmdb).then(({ backdropUrl: bg, overview: desc }) => {
+      if (bg) setBackdropUrl(bg);
+      if (desc) setOverview(desc);
+    });
+  }, [item]);
+
+  const description =
+    overview ||
+    movie?.seoOnPage?.descriptionHead?.replace(/<[^>]+>/g, '') ||
+    '';
+
+  const handlePlay = useCallback(() => {
+    navigate(`/movie/${item.slug}`);
+  }, [item.slug, navigate]);
+
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      next();
-    }
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      prev();
-    }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (activeItem) navigate(`/movie/${activeItem.slug}`);
+      navigate(`/movie/${item.slug}`);
     }
-  }, [activeItem, navigate, next, prev]);
-
-  if (!activeItem) return null;
+  }, [item.slug, navigate]);
 
   return (
-    <section
-      className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+    <div
+      className="tv-hero__slide"
+      style={{ backgroundImage: backdropUrl ? `url(${backdropUrl})` : 'none' }}
       onKeyDown={handleKeyDown}
-      tabIndex="0"
-      aria-label="Phim nổi bật"
     >
-      {/* Background poster */}
-      <div
-        className="tv-hero__bg"
-        style={{ backgroundImage: `url(${heroPoster(activeItem)})` }}
-      />
-
-      {/* Gradient overlays */}
       <div className="tv-hero__gradient-left" />
       <div className="tv-hero__gradient-bottom" />
 
-      {/* Content */}
       <div className="tv-hero__content">
-        {activeItem.logo || activeItem.title ? (
-          <div className="tv-hero__brand">
-            {activeItem.logo ? (
-              <img src={activeItem.logo} alt="" className="tv-hero__logo" />
-            ) : (
-              <h1 className="tv-hero__title">{activeItem.name || activeItem.title}</h1>
-            )}
-          </div>
-        ) : null}
+        <h1 className="tv-hero__title">
+          {movie?.item?.name || item.name || ''}
+        </h1>
 
         <div className="tv-hero__meta">
-          {activeItem.year && <span>{activeItem.year}</span>}
-          {activeItem.episode_current && (
-            <span>{activeItem.episode_current}</span>
-          )}
-          {activeItem.quality && <span className="tv-hero__quality">{activeItem.quality}</span>}
-          {activeItem.lang && <span>{activeItem.lang}</span>}
+          {item.year && <span>{item.year}</span>}
+          {item.quality && <span className="tv-hero__quality">{item.quality}</span>}
+          {item.lang && <span>{item.lang}</span>}
+          {item.episode_current && <span>{item.episode_current}</span>}
         </div>
 
-        {activeItem.description && (
-          <p className="tv-hero__desc">{activeItem.description}</p>
-        )}
-
-        {activeItem.categories && (
-          <div className="tv-hero__categories">
-            {activeItem.categories.map((cat) => (
-              <span key={cat} className="tv-hero__category-tag">{cat}</span>
-            ))}
-          </div>
-        )}
+        {description && <p className="tv-hero__desc">{description}</p>}
 
         <div className="tv-hero__actions">
           <button
             type="button"
             className="tv-hero__play-btn"
-            onClick={() => navigate(`/movie/${activeItem.slug}`)}
+            onClick={handlePlay}
+            aria-label="Xem ngay"
           >
-            <i className="bx bx-play" /> Xem ngay
+            <i className="bx bx-play" />
+            <span>Xem ngay</span>
           </button>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Navigation dots */}
-      {items.length > 1 && (
-        <div className="tv-hero__dots">
-          {items.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              className={`tv-hero__dot ${i === activeIdx ? 'tv-hero__dot--active' : ''}`}
-              onClick={() => setActiveIdx(i)}
-              aria-label={`Phim ${i + 1}`}
-              tabIndex="-1"
-            />
-          ))}
-        </div>
-      )}
-    </section>
+const TvHero = () => {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    tmdbApi
+      .getMoviesList(movieType.phimChieuRap, { page: 1 })
+      .then((res) => {
+        const movies = res.data?.items || [];
+        setItems(movies.slice(0, 8));
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!items.length) return null;
+
+  return (
+    <div className="tv-hero" tabIndex="0" aria-label="Phim nổi bật">
+      <Swiper
+        modules={[Autoplay]}
+        grabCursor={false}
+        spaceBetween={0}
+        slidesPerView={1}
+        autoplay={{ delay: 8000, disableOnInteraction: false }}
+        allowTouchMove={false}
+      >
+        {items.map((item) => (
+          <SwiperSlide key={item._id || item.slug}>
+            {({ isActive }) =>
+              isActive ? <HeroItem item={item} /> : null
+            }
+          </SwiperSlide>
+        ))}
+      </Swiper>
+    </div>
   );
 };
 
