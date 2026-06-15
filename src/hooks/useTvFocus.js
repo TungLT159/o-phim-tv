@@ -11,7 +11,7 @@ function findHorizontal(elements, current, direction) {
   const rect = current.getBoundingClientRect();
   const midY = rect.top + rect.height / 2;
   let best = null;
-  let bestDist = Infinity;
+  let bestScore = Infinity;
 
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
@@ -22,15 +22,37 @@ function findHorizontal(elements, current, direction) {
     const elMidY = r.top + r.height / 2;
     const dy = Math.abs(elMidY - midY);
 
-    // Skip elements too far vertically (different row)
-    if (dy > rect.height * 2.5) return;
+    // Must be in same row (strict Y tolerance)
+    const maxDy = rect.height * 1.5;
+    if (dy > maxDy) return;
 
-    const dist = gap + dy * 1.5;
-    if (dist < bestDist) {
-      bestDist = dist;
+    const score = gap + dy * 0.8;
+    if (score < bestScore) {
+      bestScore = score;
       best = el;
     }
   });
+
+  // Fallback: widen Y search if no same-row match
+  if (!best) {
+    elements.forEach((el) => {
+      if (el === current || el === document.body) return;
+      const r = el.getBoundingClientRect();
+      const gap = direction === 'ArrowRight' ? (r.left - rect.right) : (rect.left - r.right);
+      if (gap <= 0) return;
+
+      const elMidY = r.top + r.height / 2;
+      const dy = Math.abs(elMidY - midY);
+
+      if (dy > rect.height * 3) return;
+
+      const score = gap + dy * 1.5;
+      if (score < bestScore) {
+        bestScore = score;
+        best = el;
+      }
+    });
+  }
 
   return best;
 }
@@ -39,7 +61,7 @@ function findVertical(elements, current, direction) {
   const rect = current.getBoundingClientRect();
   const midX = rect.left + rect.width / 2;
   let best = null;
-  let bestDist = Infinity;
+  let bestScore = Infinity;
 
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
@@ -50,15 +72,38 @@ function findVertical(elements, current, direction) {
     const elMidX = r.left + r.width / 2;
     const dx = Math.abs(elMidX - midX);
 
-    // Skip elements too far horizontally (different column area)
-    if (dx > rect.width * 3) return;
+    // Must be in same column (strict X tolerance)
+    const maxDx = rect.width * 1.5;
+    if (dx > maxDx) return;
 
-    const dist = gap + dx * 0.3;
-    if (dist < bestDist) {
-      bestDist = dist;
+    // Score: prefer closer vertically, then closer horizontally
+    const score = gap + dx * 0.8;
+    if (score < bestScore) {
+      bestScore = score;
       best = el;
     }
   });
+
+  // Fallback: if no element in same column, widen search
+  if (!best) {
+    elements.forEach((el) => {
+      if (el === current || el === document.body) return;
+      const r = el.getBoundingClientRect();
+      const gap = direction === 'ArrowDown' ? (r.top - rect.bottom) : (rect.top - r.bottom);
+      if (gap <= 0) return;
+
+      const elMidX = r.left + r.width / 2;
+      const dx = Math.abs(elMidX - midX);
+
+      if (dx > rect.width * 4) return;
+
+      const score = gap + dx * 2;
+      if (score < bestScore) {
+        bestScore = score;
+        best = el;
+      }
+    });
+  }
 
   return best;
 }
@@ -82,15 +127,16 @@ export function useTvFocus() {
           const focusable = getFocusable();
           if (focusable.length === 0) return;
 
-          const target = (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
-            ? findHorizontal(focusable, focused, e.key)
-            : findVertical(focusable, focused, e.key);
+          const vertical = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+          const target = vertical
+            ? findVertical(focusable, focused, e.key)
+            : findHorizontal(focusable, focused, e.key);
 
           if (target) {
             target.focus();
             target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           }
-          return;
+          break;
         }
         case 'Backspace':
         case 'Escape':
@@ -103,6 +149,8 @@ export function useTvFocus() {
             e.preventDefault();
             focused.click();
           }
+          break;
+        default:
           break;
       }
     };
