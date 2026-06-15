@@ -43,10 +43,8 @@
         "https://github.com/TungLT159/app-o-phim/releases/latest/download/updater.json"
       ]
     },
-    "store": {},
     "shell": {
-      "open": true,
-      "sidecar": true
+      "open": true
     }
   }
 }
