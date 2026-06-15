@@ -3,13 +3,13 @@ use serde::{Deserialize, Serialize};
 
 const OPHIM_BASE_URL: &str = "https://ophim1.com";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct EpisodeServer {
     server_name: Option<String>,
     server_data: Option<Vec<EpisodeItem>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct EpisodeItem {
     name: String,
     slug: String,

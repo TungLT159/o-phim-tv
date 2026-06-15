@@ -3,6 +3,7 @@ use crate::proxy::playlist;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tauri_plugin_shell::ShellExt;
 
 const DOWNLOAD_JOB_TTL_MS: u64 = 60 * 60 * 1000;
 
@@ -36,7 +37,7 @@ fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis()
+        .as_millis() as u64
 }
 
 #[tauri::command]
@@ -204,12 +205,14 @@ pub async fn download_file(
     job_id: String,
     state: tauri::State<'_, DownloadManager>,
 ) -> Result<Vec<u8>, String> {
-    let jobs = state.jobs.lock().map_err(|e| e.to_string())?;
-    let entry = jobs.get(&job_id).ok_or_else(|| "Job not found".to_string())?;
-    let path = entry
-        .output_path
-        .as_ref()
-        .ok_or_else(|| "No output file".to_string())?;
+    let path = {
+        let jobs = state.jobs.lock().map_err(|e| e.to_string())?;
+        let entry = jobs.get(&job_id).ok_or_else(|| "Job not found".to_string())?;
+        entry
+            .output_path
+            .clone()
+            .ok_or_else(|| "No output file".to_string())?
+    };
 
     tokio::fs::read(path)
         .await

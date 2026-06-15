@@ -35,7 +35,7 @@ fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis()
+        .as_millis() as u64
 }
 
 pub fn create_stream_token_inner(url: String) -> String {
