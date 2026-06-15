@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { updatesBridge, isTauri } from "../../tauri-bridge";
 import "./update-notification.scss";
 
 const getInitialState = () => ({ status: "idle" });
@@ -7,8 +8,9 @@ const UpdateNotification = () => {
   const [updateState, setUpdateState] = useState(getInitialState);
   const [isDismissed, setIsDismissed] = useState(false);
 
+  const updates = isTauri() ? updatesBridge : window.ophimUpdates;
+
   useEffect(() => {
-    const updates = window.ophimUpdates;
     if (!updates) return undefined;
 
     let isMounted = true;
@@ -39,7 +41,7 @@ const UpdateNotification = () => {
     };
   }, []);
 
-  if (!window.ophimUpdates || isDismissed) return null;
+  if (!updates || isDismissed) return null;
 
   const { status, version, percent, message } = updateState;
   if (!["available", "download-progress", "downloaded", "error"].includes(status)) {
@@ -68,12 +70,12 @@ const UpdateNotification = () => {
       </div>
       <div className="update-notification__actions">
         {isAvailable && (
-          <button type="button" onClick={() => window.ophimUpdates.download()}>
+          <button type="button" onClick={() => updates.download()}>
             Tải cập nhật
           </button>
         )}
         {isDownloaded && (
-          <button type="button" onClick={() => window.ophimUpdates.install()}>
+          <button type="button" onClick={() => updates.install()}>
             Khởi động lại để cập nhật
           </button>
         )}

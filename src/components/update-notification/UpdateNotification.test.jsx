@@ -4,6 +4,20 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import UpdateNotification from "./UpdateNotification";
 
+jest.mock('../../tauri-bridge', () => ({
+  updatesBridge: {
+    check: jest.fn(),
+    download: jest.fn(),
+    install: jest.fn(),
+    getState: jest.fn().mockResolvedValue({ status: 'idle' }),
+    onStateChange: jest.fn(() => jest.fn()),
+  },
+  isTauri: jest.fn(() => false),
+  watchHistoryBridge: {},
+  navigationBridge: {},
+  apiBridge: {},
+}));
+
 afterEach(() => {
   delete window.ophimUpdates;
 });
