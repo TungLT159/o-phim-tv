@@ -1,6 +1,7 @@
 @use "../../scss/" as *;
 
-$sidebar-width: 220px;
+$sidebar-collapsed: 60px;
+$sidebar-expanded: 220px;
 $sidebar-bg: rgba(14, 14, 14, 0.96);
 $sidebar-item-h: 52px;
 $subitem-h: 44px;
@@ -8,37 +9,66 @@ $accent: #e50914;
 $focus-color: #ff6b35;
 $text-color: rgba(255, 255, 255, 0.85);
 $text-dim: rgba(255, 255, 255, 0.55);
-$transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+$transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
 .tv-sidebar {
   position: fixed;
   top: 0;
   left: 0;
-  width: $sidebar-width;
+  width: $sidebar-collapsed;
   height: 100vh;
   z-index: 200;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
+  transition: width $transition;
+
+  &--expanded {
+    width: $sidebar-expanded;
+
+    .tv-sidebar__bg {
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .tv-sidebar__item span,
+    .tv-sidebar__subitem span {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .tv-sidebar__logo span {
+      opacity: 1;
+    }
+
+    .tv-sidebar__arrow {
+      opacity: 1;
+    }
+  }
 
   &__bg {
     position: absolute;
     inset: 0;
     background: $sidebar-bg;
     backdrop-filter: blur(12px);
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    border-right: 1px solid rgba(255, 255, 255, 0.03);
     z-index: 0;
+    transition: border-right $transition;
 
     &::after {
       content: '';
       position: absolute;
       top: 0;
       right: 0;
-      width: 40px;
+      width: 30px;
       height: 100%;
-      background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.3));
+      background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.25));
       pointer-events: none;
+      transition: opacity $transition;
     }
+  }
+
+  &--expanded &__bg::after {
+    opacity: 1;
   }
 
   &__inner {
@@ -53,7 +83,7 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 
     &::-webkit-scrollbar {
-      width: 4px;
+      width: 3px;
     }
 
     &::-webkit-scrollbar-thumb {
@@ -62,38 +92,60 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 
-  // Logo section
   &__logo {
-    padding: 24px 20px 16px;
+    padding: 20px 0 12px;
 
     a {
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
       text-decoration: none;
-      border-radius: 8px;
-      padding: 6px 0;
+      border-radius: 0;
+      padding: 0;
 
       img {
-        height: 40px;
+        height: 32px;
         width: auto;
+        flex-shrink: 0;
+        transition: height $transition;
       }
 
       span {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
         font-weight: 700;
         color: #fff;
         letter-spacing: 0.02em;
+        opacity: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        transition: opacity $transition;
+        margin-left: 0;
       }
 
       &:focus-visible {
         outline: 3px solid $focus-color;
-        outline-offset: 4px;
+        outline-offset: 2px;
       }
     }
   }
 
-  // Navigation container
+  &--expanded &__logo {
+    padding: 24px 20px 16px;
+
+    a {
+      justify-content: flex-start;
+      gap: 12px;
+
+      img {
+        height: 40px;
+      }
+
+      span {
+        margin-left: 12px;
+      }
+    }
+  }
+
   &__nav {
     flex: 1;
     overflow-y: auto;
@@ -105,14 +157,13 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 
-  // Base nav item
   &__item {
     display: flex;
     align-items: center;
-    gap: 14px;
+    justify-content: center;
     height: $sidebar-item-h;
-    padding: 0 20px;
-    color: $text-color;
+    padding: 0;
+    color: $text-dim;
     font-size: 1.05rem;
     font-weight: 500;
     text-decoration: none;
@@ -121,8 +172,7 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     cursor: pointer;
     position: relative;
-    transition: background $transition, color $transition;
-    border-radius: 0;
+    transition: background $transition, color $transition, padding $transition, justify-content $transition;
 
     i:first-child {
       font-size: 1.35rem;
@@ -132,10 +182,13 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     span {
-      flex: 1;
+      flex: 0;
       white-space: nowrap;
       overflow: hidden;
-      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+      margin-left: 0;
     }
 
     &--active {
@@ -160,18 +213,6 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       background: rgba(255, 255, 255, 0.08);
       color: #fff;
       outline: none;
-
-      &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 4px;
-        height: 24px;
-        background: $focus-color;
-        border-radius: 0 3px 3px 0;
-      }
     }
 
     &--active:hover,
@@ -183,19 +224,25 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 
-  // Category section
+  &--expanded &__item {
+    justify-content: flex-start;
+    padding: 0 20px;
+
+    span {
+      flex: 1;
+      margin-left: 14px;
+    }
+  }
+
   &__category {
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 
     &__arrow {
       font-size: 1.1rem;
       color: $text-dim;
-      margin-left: auto;
+      margin-left: 0;
       transition: transform $transition;
-    }
-
-    &--expanded .tv-sidebar__arrow {
-      transform: rotate(0deg);
+      opacity: 0;
     }
 
     &--active .tv-sidebar__item--category {
@@ -203,85 +250,104 @@ $transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 
-  &__item--category {
-    color: $text-color;
-    font-weight: 600;
+  &--expanded &__category--expanded &__arrow {
+    transform: rotate(180deg);
   }
 
-  // Submenu
   &__submenu {
     max-height: 0;
     overflow: hidden;
-    transition: max-height $transition;
+    transition: max-height 0.2s ease;
     background: rgba(255, 255, 255, 0.02);
   }
 
-  &__category--expanded &__submenu {
+  &--expanded &__category--expanded &__submenu {
     max-height: 700px;
   }
 
   &__subitem {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: $subitem-h;
-    padding: 0 20px 0 54px;
+    padding: 0;
     color: $text-dim;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     text-decoration: none;
-    transition: background $transition, color $transition, padding $transition;
+    transition: background $transition, color $transition, padding $transition, justify-content $transition;
     position: relative;
+
+    span {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
 
     &::before {
       content: '·';
       position: absolute;
-      left: 40px;
+      left: 50%;
       color: $text-dim;
       font-weight: bold;
+      opacity: 1;
     }
 
     &:hover,
     &:focus-visible {
       background: rgba(255, 255, 255, 0.06);
       color: #fff;
-      padding-left: 58px;
       outline: none;
     }
 
     &--active {
       color: $accent;
       background: rgba($accent, 0.08);
-
-      &::before {
-        color: $accent;
-      }
     }
   }
 
-  // Search item
+  &--expanded &__subitem {
+    justify-content: flex-start;
+    padding: 0 20px 0 54px;
+
+    &::before {
+      left: 40px;
+    }
+
+    &:hover,
+    &:focus-visible {
+      padding-left: 58px;
+    }
+
+    &--active::before {
+      color: $accent;
+    }
+  }
+
   &__item--search {
     margin-top: 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
 
-  // Overlay when browsing
   &__overlay {
     position: fixed;
     top: 0;
-    left: $sidebar-width;
-    width: calc(100vw - $sidebar-width);
+    left: $sidebar-expanded;
+    width: calc(100vw - $sidebar-expanded);
     height: 100vh;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.35);
     z-index: 199;
     pointer-events: none;
     animation: tvSidebarOverlayIn 0.3s ease;
   }
 }
 
+// Collapsed subtitle indicator
+.tv-sidebar:not(.tv-sidebar--expanded) {
+  .tv-sidebar__submenu {
+    display: none;
+  }
+}
+
 @keyframes tvSidebarOverlayIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

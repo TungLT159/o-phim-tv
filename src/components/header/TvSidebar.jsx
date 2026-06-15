@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import './tv-sidebar.scss';
 import logo from '../../assets/logo.png';
@@ -13,36 +13,36 @@ const ICONS = {
 
 const TvSidebar = () => {
   const { pathname } = useLocation();
+  const [expanded, setExpanded] = useState(false);
   const [focusedCategory, setFocusedCategory] = useState(null);
-  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const sidebarRef = useRef(null);
 
   const activeIdx = headerNav.findIndex((e) =>
     e.submenu?.some((sub) => pathname.startsWith(sub.path))
   );
 
+  useEffect(() => {
+    const onFocusIn = (e) => {
+      if (sidebarRef.current?.contains(e.target)) {
+        setExpanded(true);
+      } else {
+        setExpanded(false);
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
   const handleCategoryFocus = useCallback((index) => {
     setFocusedCategory(index);
   }, []);
-
-  const handleCategoryBlur = useCallback(() => {
-    setFocusedCategory(null);
-  }, []);
-
-  const handleSidebarEnter = useCallback(() => {
-    setSidebarHovered(true);
-  }, []);
-
-  const handleSidebarLeave = useCallback(() => {
-    setSidebarHovered(false);
-  });
 
   const isActive = (index) => activeIdx === index;
 
   return (
     <nav
-      className="tv-sidebar"
-      onMouseEnter={handleSidebarEnter}
-      onMouseLeave={handleSidebarLeave}
+      ref={sidebarRef}
+      className={`tv-sidebar ${expanded ? 'tv-sidebar--expanded' : ''}`}
       aria-label="Điều hướng TV"
     >
       <div className="tv-sidebar__bg" />
@@ -68,24 +68,19 @@ const TvSidebar = () => {
           {headerNav.map((category, catIdx) => (
             <div
               key={category.display}
-              className={`tv-sidebar__category ${focusedCategory === catIdx ? 'tv-sidebar__category--expanded' : ''} ${isActive(catIdx) ? 'tv-sidebar__category--active' : ''}`}
+              className={`tv-sidebar__category ${focusedCategory === catIdx && expanded ? 'tv-sidebar__category--expanded' : ''} ${isActive(catIdx) ? 'tv-sidebar__category--active' : ''}`}
             >
               <button
                 type="button"
                 className="tv-sidebar__item tv-sidebar__item--category"
                 tabIndex="0"
                 onFocus={() => handleCategoryFocus(catIdx)}
-                onBlur={(e) => {
-                  if (!e.currentTarget.parentNode.contains(e.relatedTarget)) {
-                    handleCategoryBlur();
-                  }
-                }}
-                aria-expanded={focusedCategory === catIdx}
+                aria-expanded={focusedCategory === catIdx && expanded}
                 aria-haspopup="true"
               >
                 <i className={`bx ${ICONS[category.display] || 'bx-collection'}`} aria-hidden="true" />
                 <span>{category.display}</span>
-                <i className={`bx bx-chevron-${focusedCategory === catIdx ? 'down' : 'right'} tv-sidebar__arrow`} aria-hidden="true" />
+                <i className={`bx bx-chevron-${focusedCategory === catIdx && expanded ? 'down' : 'right'} tv-sidebar__arrow`} aria-hidden="true" />
               </button>
 
               <div className="tv-sidebar__submenu" role="menu">
@@ -116,9 +111,7 @@ const TvSidebar = () => {
         </div>
       </div>
 
-      {(focusedCategory !== null || sidebarHovered) && (
-        <div className="tv-sidebar__overlay" aria-hidden="true" />
-      )}
+      {expanded && <div className="tv-sidebar__overlay" aria-hidden="true" />}
     </nav>
   );
 };

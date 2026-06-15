@@ -130,10 +130,16 @@ iframe{
 
 /* ================= TV SIDEBAR LAYOUT ================= */
 .tv-layout {
-  margin-left: 220px;
+  margin-left: 60px;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
   .header {
     display: none;
+  }
+
+  .footer {
+    padding: 2rem 2rem 3rem;
+    margin-top: 4rem;
   }
 
   .container {
@@ -144,12 +150,6 @@ iframe{
     padding: 0 2rem;
   }
 
-  .footer {
-    padding: 2rem 2rem 3rem;
-    margin-top: 4rem;
-  }
-
-  // TV Home page
   .tv-home {
     padding-top: 0;
 
@@ -158,13 +158,15 @@ iframe{
     }
   }
 
-  // Detail page TV padding
   .detail-page {
     padding: 1.5rem 2.5rem 2rem;
   }
 
-  // Catalog page TV padding
   .catalog-page {
     padding: 1.5rem 2.5rem 2rem;
   }
+}
+
+.tv-layout:has(.tv-sidebar--expanded) {
+  margin-left: 220px;
 }
