@@ -1,0 +1,31 @@
+// TV Focus styles for Android TV / Google TV
+*:focus-visible {
+  outline: 3px solid #ff6b35 !important;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+// Larger touch targets for TV
+@media (orientation: landscape) and (min-width: 1280px) {
+  body {
+    font-size: 18px;
+  }
+
+  button, a, [tabindex] {
+    min-height: 48px;
+    font-size: 18px;
+  }
+
+  .header__nav .nav-item {
+    font-size: 16px;
+  }
+
+  .movie-card {
+    min-height: 48px;
+  }
+
+  input, select, textarea {
+    font-size: 18px;
+    min-height: 48px;
+  }
+}
