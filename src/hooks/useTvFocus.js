@@ -7,47 +7,53 @@ function getFocusable() {
   return document.querySelectorAll(FOCUSABLE);
 }
 
-function getGridPosition(el) {
-  const rect = el?.getBoundingClientRect();
-  if (!rect) return { x: 0, y: 0 };
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
-function findBestMatch(elements, current, key) {
-  const currentPos = getGridPosition(current);
+function findHorizontal(elements, current, direction) {
+  const rect = current.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
   let best = null;
   let bestDist = Infinity;
 
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
-    const pos = getGridPosition(el);
-    let dx = pos.x - currentPos.x;
-    let dy = pos.y - currentPos.y;
+    const r = el.getBoundingClientRect();
+    const gap = direction === 'ArrowRight' ? (r.left - rect.right) : (rect.left - r.right);
+    if (gap <= 0) return;
 
-    switch (key) {
-      case 'ArrowDown':
-        if (dy <= 0) return;
-        break;
-      case 'ArrowUp':
-        if (dy >= 0) return;
-        break;
-      case 'ArrowRight':
-        if (dx <= 0) return;
-        break;
-      case 'ArrowLeft':
-        if (dx >= 0) return;
-        break;
+    const elMidY = r.top + r.height / 2;
+    const dy = Math.abs(elMidY - midY);
+
+    // Skip elements too far vertically (different row)
+    if (dy > rect.height * 2.5) return;
+
+    const dist = gap + dy * 1.5;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = el;
     }
+  });
 
-    // Prefer same column (small horizontal offset) for vertical moves
-    // Prefer same row (small vertical offset) for horizontal moves
-    if (key === 'ArrowDown' || key === 'ArrowUp') {
-      dx = Math.abs(dx);
-    } else {
-      dy = Math.abs(dy);
-    }
+  return best;
+}
 
-    const dist = Math.sqrt(dx * dx + dy * dy);
+function findVertical(elements, current, direction) {
+  const rect = current.getBoundingClientRect();
+  const midX = rect.left + rect.width / 2;
+  let best = null;
+  let bestDist = Infinity;
+
+  elements.forEach((el) => {
+    if (el === current || el === document.body) return;
+    const r = el.getBoundingClientRect();
+    const gap = direction === 'ArrowDown' ? (r.top - rect.bottom) : (rect.top - r.bottom);
+    if (gap <= 0) return;
+
+    const elMidX = r.left + r.width / 2;
+    const dx = Math.abs(elMidX - midX);
+
+    // Skip elements too far horizontally (different column area)
+    if (dx > rect.width * 3) return;
+
+    const dist = gap + dx * 0.3;
     if (dist < bestDist) {
       bestDist = dist;
       best = el;
@@ -67,18 +73,25 @@ export function useTvFocus() {
     const handleKeyDown = (e) => {
       const focused = document.activeElement;
 
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' ||
-          e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        const focusable = getFocusable();
-        if (focusable.length === 0) return;
-
-        const target = findBestMatch(focusable, focused, e.key);
-        if (target) target.focus();
-        return;
-      }
-
       switch (e.key) {
+        case 'ArrowDown':
+        case 'ArrowUp':
+        case 'ArrowRight':
+        case 'ArrowLeft': {
+          e.preventDefault();
+          const focusable = getFocusable();
+          if (focusable.length === 0) return;
+
+          const target = (e.key === 'ArrowRight' || e.key === 'ArrowLeft')
+            ? findHorizontal(focusable, focused, e.key)
+            : findVertical(focusable, focused, e.key);
+
+          if (target) {
+            target.focus();
+            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+          return;
+        }
         case 'Backspace':
         case 'Escape':
           e.preventDefault();
