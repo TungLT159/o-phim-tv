@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { OutlineButton } from "../components/button/Button";
 import HeroSlide from "../components/hero-slide/HeroSlide";
@@ -27,14 +27,8 @@ const TV_ROWS = [
 ];
 
 function TvHome() {
-  const heroRef = useRef(null);
   const [heroMovies, setHeroMovies] = useState([]);
   const [rows, setRows] = useState({});
-
-  useEffect(() => {
-    // Auto-focus hero on mount
-    setTimeout(() => heroRef.current?.focus(), 200);
-  }, []);
 
   useEffect(() => {
     const types = TV_ROWS.map(r => r.type);
@@ -52,7 +46,7 @@ function TvHome() {
   }, []);
 
   return (
-    <div className="tv-home" ref={heroRef} tabIndex="-1">
+    <div className="tv-home">
       <Helmet>
         <title>O Phim - TV</title>
       </Helmet>

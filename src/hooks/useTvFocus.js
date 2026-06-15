@@ -8,16 +8,16 @@ function getFocusable() {
 }
 
 function findHorizontal(elements, current, direction) {
-  // Try sibling first — most intuitive for row navigation
+  // Try sibling first for row navigation
   const sibling = direction === 'ArrowRight'
     ? current.nextElementSibling
     : current.previousElementSibling;
 
   if (sibling && (sibling.matches?.(FOCUSABLE) || sibling.querySelector?.(FOCUSABLE))) {
-    return sibling.matches?.(FOCUSABLE) ? sibling : sibling.querySelector?.(FOCUSABLE);
+    return sibling.matches?.(FOCUSABLE) ? sibling : sibling.querySelector(FOCUSABLE);
   }
 
-  // Fallback: spatial search within same row
+  // Spatial: same Y row only
   const rect = current.getBoundingClientRect();
   let best = null;
   let bestGap = Infinity;
@@ -30,9 +30,8 @@ function findHorizontal(elements, current, direction) {
     const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
     if (gap <= 0) return;
 
-    // Y-center must overlap
     const targetMidY = r.top + r.height / 2;
-    if (targetMidY < rect.top - 4 || targetMidY > rect.bottom + 4) return;
+    if (targetMidY < rect.top - 8 || targetMidY > rect.bottom + 8) return;
 
     if (gap < bestGap) {
       bestGap = gap;
@@ -40,15 +39,15 @@ function findHorizontal(elements, current, direction) {
     }
   });
 
-  // Phase 2: closest in any row
-  if (!best) {
+  if (best) return best;
+
+  // Left from first item: find any element to the left (sidebar)
+  if (direction === 'ArrowLeft') {
     elements.forEach((el) => {
       if (el === current || el === document.body) return;
       const r = el.getBoundingClientRect();
-
-      const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
+      const gap = rect.left - r.right;
       if (gap <= 0) return;
-
       if (gap < bestGap) {
         bestGap = gap;
         best = el;
@@ -65,7 +64,7 @@ function findVertical(elements, current, direction) {
   let bestGap = Infinity;
   const sign = direction === 'ArrowDown' ? 1 : -1;
 
-  // Phase 1: X-center overlaps with current element
+  // Phase 1: X-center overlaps current element
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
     const r = el.getBoundingClientRect();
@@ -74,7 +73,7 @@ function findVertical(elements, current, direction) {
     if (gap <= 0) return;
 
     const targetMidX = r.left + r.width / 2;
-    if (targetMidX < rect.left - 4 || targetMidX > rect.right + 4) return;
+    if (targetMidX < rect.left - 8 || targetMidX > rect.right + 8) return;
 
     if (gap < bestGap) {
       bestGap = gap;
@@ -84,7 +83,7 @@ function findVertical(elements, current, direction) {
 
   if (best) return best;
 
-  // Phase 2: widen X overlap by 2x width
+  // Phase 2: same column, wider X tolerance
   elements.forEach((el) => {
     if (el === current || el === document.body) return;
     const r = el.getBoundingClientRect();
@@ -113,6 +112,12 @@ export function useTvFocus() {
   useEffect(() => {
     if (!isTauri() || initialized.current) return;
     initialized.current = true;
+
+    // Auto-focus hero on load
+    const timer = setTimeout(() => {
+      const hero = document.querySelector('.tv-hero');
+      if (hero) hero.focus();
+    }, 300);
 
     const handleKeyDown = (e) => {
       const focused = document.activeElement;
@@ -155,6 +160,9 @@ export function useTvFocus() {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 }
