@@ -20,39 +20,6 @@
     letter-spacing: 0.01em;
   }
 
-  &__arrows {
-    display: flex;
-    gap: 0.5rem;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  &__header:hover &__arrows,
-  &:focus-within &__arrows {
-    opacity: 1;
-  }
-
-  &__arrow {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(0, 0, 0, 0.5);
-    color: #fff;
-    font-size: 1.3rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover,
-    &:focus-visible {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.5);
-    }
-  }
-
   // Horizontal scroll track
   &__track {
     display: flex;
@@ -60,7 +27,6 @@
     padding: 0.5rem 2rem 0.75rem;
     overflow-x: auto;
     overflow-y: hidden;
-    scroll-behavior: smooth;
     scroll-snap-type: x proximity;
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -68,36 +34,6 @@
     &::-webkit-scrollbar {
       display: none;
     }
-  }
-
-  // Edge gradient indicators
-  &__edge-left,
-  &__edge-right {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 40px;
-    pointer-events: none;
-    z-index: 2;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  &__edge-left {
-    left: 0;
-    background: linear-gradient(to right, rgba(15, 15, 15, 0.9), transparent);
-  }
-
-  &__edge-right {
-    right: 0;
-    background: linear-gradient(to left, rgba(15, 15, 15, 0.9), transparent);
-  }
-
-  // Show edges when scrollable
-  &:has(&__track:hover) &__edge-left,
-  &:has(&__track:focus-within) &__edge-left,
-  &:focus-within &__edge-left {
-    opacity: 1;
   }
 
   // Individual card
