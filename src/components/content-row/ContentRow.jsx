@@ -1,6 +1,13 @@
 import React, { useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import apiConfig from '../../api/apiConfig';
 import './content-row.scss';
+
+const posterUrl = (item) => {
+  if (item.thumb_url) return `https://img.ophim.live/uploads/movies/${item.thumb_url}`;
+  if (item.poster_url) return item.poster_url;
+  return '/poster-mau.png';
+};
 
 const ContentRow = ({ title, items = [], rowId }) => {
   const rowRef = useRef(null);
@@ -47,7 +54,7 @@ const ContentRow = ({ title, items = [], rowId }) => {
         {items.map((item, idx) => (
           <Link
             key={item.slug || idx}
-            to={`/phim/${item.slug}`}
+            to={`/movie/${item.slug}`}
             className="content-row__card"
             tabIndex="0"
             data-row={rowId}
@@ -55,7 +62,7 @@ const ContentRow = ({ title, items = [], rowId }) => {
           >
             <div className="content-row__poster">
               <img
-                src={item.poster_url || item.thumb_url || ''}
+                src={posterUrl(item)}
                 alt={item.name || item.title || ''}
                 loading="lazy"
               />

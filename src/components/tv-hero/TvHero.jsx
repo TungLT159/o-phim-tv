@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import apiConfig from '../../api/apiConfig';
 import './tv-hero.scss';
+
+const heroPoster = (item) => {
+  if (item.thumb_url) return `https://img.ophim.live/uploads/movies/${item.thumb_url}`;
+  if (item.poster_url) return item.poster_url;
+  return '/poster-mau.png';
+};
 
 const TvHero = ({ items = [] }) => {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -39,7 +46,7 @@ const TvHero = ({ items = [] }) => {
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (activeItem) navigate(`/phim/${activeItem.slug}`);
+      if (activeItem) navigate(`/movie/${activeItem.slug}`);
     }
   }, [activeItem, navigate, next, prev]);
 
@@ -57,7 +64,7 @@ const TvHero = ({ items = [] }) => {
       {/* Background poster */}
       <div
         className="tv-hero__bg"
-        style={{ backgroundImage: `url(${activeItem.poster_url || activeItem.thumb_url || ''})` }}
+        style={{ backgroundImage: `url(${heroPoster(activeItem)})` }}
       />
 
       {/* Gradient overlays */}
@@ -101,7 +108,7 @@ const TvHero = ({ items = [] }) => {
           <button
             type="button"
             className="tv-hero__play-btn"
-            onClick={() => navigate(`/phim/${activeItem.slug}`)}
+            onClick={() => navigate(`/movie/${activeItem.slug}`)}
           >
             <i className="bx bx-play" /> Xem ngay
           </button>
