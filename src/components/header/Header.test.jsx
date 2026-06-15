@@ -7,6 +7,29 @@ import Header from "./Header";
 
 jest.mock("../../assets/logo.png", () => "logo.png");
 
+jest.mock('../../tauri-bridge', () => ({
+  navigationBridge: {
+    back: () => undefined,
+    forward: () => undefined,
+    reload: () => undefined,
+    getState: jest.fn(() => Promise.resolve({ canGoBack: true, canGoForward: false })),
+    onStateChange: () => () => undefined,
+  },
+  isTauri: () => false,
+  watchHistoryBridge: {},
+  updatesBridge: {},
+  apiBridge: {},
+}));
+
+beforeEach(() => {
+  const { navigationBridge } = require('../../tauri-bridge');
+  jest.spyOn(navigationBridge, 'back').mockReturnValue();
+  jest.spyOn(navigationBridge, 'forward').mockReturnValue();
+  jest.spyOn(navigationBridge, 'reload').mockReturnValue();
+  jest.spyOn(navigationBridge, 'getState').mockReturnValue(Promise.resolve({ canGoBack: true, canGoForward: false }));
+  jest.spyOn(navigationBridge, 'onStateChange').mockReturnValue(() => undefined);
+});
+
 jest.mock("./useHeaderSearch", () => () => ({
   keyword: "",
   suggestions: [],
@@ -30,26 +53,19 @@ const renderHeader = () =>
   );
 
 afterEach(() => {
-  delete window.ophimNavigation;
+  jest.restoreAllMocks();
 });
 
-test("does not render desktop navigation controls outside Electron", () => {
+test("renders desktop navigation controls via bridge", async () => {
   renderHeader();
 
-  expect(screen.queryByLabelText("Quay lại")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Tiến tới")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Tải lại")).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("Quay lại")).toBeInTheDocument();
+  expect(screen.getByLabelText("Tiến tới")).toBeInTheDocument();
+  expect(screen.getByLabelText("Tải lại")).toBeInTheDocument();
 });
 
-test("renders Electron navigation controls and calls bridge actions", async () => {
-  const unsubscribe = jest.fn();
-  window.ophimNavigation = {
-    back: jest.fn(),
-    forward: jest.fn(),
-    reload: jest.fn(),
-    getState: jest.fn().mockResolvedValue({ canGoBack: true, canGoForward: false }),
-    onStateChange: jest.fn(() => unsubscribe),
-  };
+test("calls bridge navigation methods on click", async () => {
+  const { navigationBridge } = require('../../tauri-bridge');
 
   renderHeader();
 
@@ -64,24 +80,18 @@ test("renders Electron navigation controls and calls bridge actions", async () =
   fireEvent.click(forwardButton);
   fireEvent.click(reloadButton);
 
-  expect(window.ophimNavigation.back).toHaveBeenCalledTimes(1);
-  expect(window.ophimNavigation.forward).not.toHaveBeenCalled();
-  expect(window.ophimNavigation.reload).toHaveBeenCalledTimes(1);
-  expect(window.ophimNavigation.onStateChange).toHaveBeenCalledWith(expect.any(Function));
+  expect(navigationBridge.back).toHaveBeenCalledTimes(1);
+  expect(navigationBridge.forward).not.toHaveBeenCalled();
+  expect(navigationBridge.reload).toHaveBeenCalledTimes(1);
+  expect(navigationBridge.onStateChange).toHaveBeenCalledWith(expect.any(Function));
 });
 
-test("updates Electron navigation button state from bridge events", async () => {
-  let stateListener;
-  window.ophimNavigation = {
-    back: jest.fn(),
-    forward: jest.fn(),
-    reload: jest.fn(),
-    getState: jest.fn().mockResolvedValue({ canGoBack: false, canGoForward: false }),
-    onStateChange: jest.fn((listener) => {
-      stateListener = listener;
-      return jest.fn();
-    }),
-  };
+test("updates navigation button state from bridge events", async () => {
+  const { navigationBridge } = require('../../tauri-bridge');
+
+  navigationBridge.getState
+    .mockReturnValueOnce(Promise.resolve({ canGoBack: false, canGoForward: false }))
+    .mockReturnValue(Promise.resolve({ canGoBack: false, canGoForward: false }));
 
   renderHeader();
 
@@ -91,8 +101,10 @@ test("updates Electron navigation button state from bridge events", async () => 
   expect(backButton).toBeDisabled();
   expect(forwardButton).toBeDisabled();
 
+  const listener = navigationBridge.onStateChange.mock.calls[0][0];
+
   act(() => {
-    stateListener({ canGoBack: true, canGoForward: true });
+    listener({ canGoBack: true, canGoForward: true });
   });
 
   await waitFor(() => {

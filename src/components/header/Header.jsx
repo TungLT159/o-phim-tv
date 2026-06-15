@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./header.scss";
 import logo from "../../assets/logo.png";
 import { headerNav } from "../../constants/navigationData";
+import { navigationBridge } from '../../tauri-bridge';
 import SearchSuggestions from "./SearchSuggestions";
 import useHeaderSearch from "./useHeaderSearch";
 
@@ -50,7 +51,7 @@ const Header = () => {
   }, []);
 
   useEffect(() => {
-    const navigation = window.ophimNavigation;
+    const navigation = navigationBridge;
     if (!navigation) return undefined;
 
     let isMounted = true;
@@ -73,10 +74,10 @@ const Header = () => {
   }, []);
 
   useEffect(() => {
-    const navigation = window.ophimNavigation;
-    if (!navigation) return;
+    const nav = navigationBridge;
+    if (!nav) return;
 
-    navigation
+    nav
       .getState()
       .then((state = {}) => {
         setDesktopNavigation({
@@ -88,20 +89,18 @@ const Header = () => {
       .catch(() => {});
   }, [pathname]);
 
-  const handleDesktopBack = () => {
+  const handleDesktopBack = async () => {
     if (desktopNavigation.canGoBack) {
-      window.ophimNavigation?.back();
+      await navigationBridge.back();
     }
   };
 
-  const handleDesktopForward = () => {
-    if (desktopNavigation.canGoForward) {
-      window.ophimNavigation?.forward();
-    }
+  const handleDesktopForward = async () => {
+    await navigationBridge.forward();
   };
 
-  const handleDesktopReload = () => {
-    window.ophimNavigation?.reload();
+  const handleDesktopReload = async () => {
+    await navigationBridge.reload();
   };
 
   const toggleSubmenu = (index) => {
