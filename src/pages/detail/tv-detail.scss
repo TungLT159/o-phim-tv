@@ -181,6 +181,41 @@
     margin: 0 0 0.75rem;
   }
 
+  &__season-select {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  &__season-label {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  &__season-dropdown {
+    padding: 0.45rem 2rem 0.45rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+
+    &:focus { border-color: #ff6b35; }
+
+    option {
+      background: #1a1a1a;
+      color: #fff;
+    }
+  }
+
   &__ep-list {
     display: flex;
     flex-wrap: wrap;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import tmdbApi from '../../api/tmdbApi';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 import { useMovieDetail } from './useMovieDetail';
@@ -7,18 +7,35 @@ import { useEpisodeCatalog } from './useEpisodeCatalog';
 import { useEpisodePlayback } from './useEpisodePlayback';
 import CustomVideoPlayer from '../../components/video-player/CustomVideoPlayer';
 import ContentRow from '../../components/content-row/ContentRow';
-import { useFocusable, useFocus } from '../../context/FocusContext';
+import { useFocusable } from '../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../utils/episodeDisplayName';
 import '../detail/detail.scss';
 import './tv-detail.scss';
 
-function EpisodeButton({ ep, label, row, col, disabled, onClick, selected }) {
+function GroupDropdown({ groups, selected, onChange }) {
+  if (groups.length <= 1) return null;
+  return (
+    <div className="tv-detail__season-select">
+      <label className="tv-detail__season-label">Phần:</label>
+      <select
+        value={selected}
+        onChange={e => onChange(Number(e.target.value))}
+        className="tv-detail__season-dropdown"
+      >
+        {groups.map((g, i) => (
+          <option key={i} value={i}>{g.title}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EpisodeButton({ ep, label, row, col, onClick, selected }) {
   const { ref, focused } = useFocusable(1, row, col);
   return (
     <button
       ref={ref}
       type="button"
-      disabled={disabled}
       onClick={onClick}
       className={`tv-detail__ep-btn ${selected ? 'tv-detail__ep-btn--active' : ''} ${focused ? 'tv-detail__ep-btn--focused' : ''}`}
     >
@@ -30,12 +47,12 @@ function EpisodeButton({ ep, label, row, col, disabled, onClick, selected }) {
 export default function TvDetail() {
   const { id } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const videoRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [backdrop, setBackdrop] = useState('');
   const [overview, setOverview] = useState('');
   const [similar, setSimilar] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(0);
 
   const query = new URLSearchParams(location.search);
   const epParam = query.get('ep') || '';
@@ -43,26 +60,28 @@ export default function TvDetail() {
   const { item, loadError } = useMovieDetail('movie', id);
   const movie = item;
 
-  // Episode catalog
   const {
-    episodeGroups,
+    allEpisodeGroups,
     episodeList,
     currentEpisode,
     currentEpisodeIndex,
     selectEpisode,
   } = useEpisodeCatalog({ item: movie, initialEpisodeParam: epParam });
 
-  // Video playback
-  const currentEp = currentEpisode || (epParam && episodeList.find(e => e.slug === epParam || e.name === epParam));
+  const currentEp = currentEpisode;
   const nextEp = episodeList[currentEpisodeIndex + 1];
-  const { playbackError } = useEpisodePlayback({
-    movieId: id,
-    episode: currentEp,
-    nextEpisode: nextEp,
-    videoRef,
-  });
+  const { playbackError } = useEpisodePlayback({ movieId: id, episode: currentEp, nextEpisode: nextEp, videoRef });
 
-  // TMDB backdrop
+  // Set initial group based on current episode
+  useEffect(() => {
+    if (currentEp && allEpisodeGroups.length > 1) {
+      const gIdx = currentEp.episodeGroupIndex;
+      if (gIdx !== undefined && gIdx !== selectedGroup) {
+        setSelectedGroup(gIdx);
+      }
+    }
+  }, [currentEp]);
+
   useEffect(() => {
     if (!movie?.tmdb) return;
     fetchTMDBImages(movie.tmdb).then(({ backdropUrl, overview: desc }) => {
@@ -71,7 +90,6 @@ export default function TvDetail() {
     });
   }, [movie]);
 
-  // Similar movies
   useEffect(() => {
     if (!movie?.tmdb?.id) return;
     const type = movie.tmdb.type || 'movie';
@@ -86,17 +104,16 @@ export default function TvDetail() {
   if (loadError) {
     return <div className="tv-detail tv-detail--error"><i className="bx bx-error-circle" /><p>{loadError}</p></div>;
   }
-
   if (!movie) {
     return <div className="tv-detail tv-detail--loading"><i className="bx bx-loader-alt bx-spin" /><p>Đang tải...</p></div>;
   }
 
-  const epDisplay = currentEp ? formatEpisodeDisplayName(currentEp.name) : '';
+  const currentGroup = allEpisodeGroups[selectedGroup];
+  const groupEpisodes = currentGroup?.episodes || [];
   const isSeries = episodeList.length > 1;
 
   return (
     <div className="tv-detail">
-      {/* Fullscreen player */}
       {playing && (
         <div className="tv-detail__player">
           <button className="tv-detail__player-close" onClick={handleClose} autoFocus>
@@ -109,19 +126,17 @@ export default function TvDetail() {
             episodeName={currentEp?.name}
             episodeSlug={currentEp?.slug}
             episodeList={episodeList}
-            episodeGroups={episodeGroups}
+            episodeGroups={allEpisodeGroups}
             movieTitle={movie.name}
             movieSlug={movie.slug}
           />
         </div>
       )}
 
-      {/* Hero backdrop */}
       <div className="tv-detail__hero" style={{ backgroundImage: backdrop ? `url(${backdrop})` : 'none' }}>
         <div className="tv-detail__hero-gradient" />
       </div>
 
-      {/* Info section */}
       <div className="tv-detail__info">
         <h1 className="tv-detail__title">{movie.name || movie.origin_name}</h1>
         {movie.origin_name && movie.origin_name !== movie.name && (
@@ -138,7 +153,7 @@ export default function TvDetail() {
 
         <div className="tv-detail__actions">
           <button className="tv-detail__play-btn" onClick={handlePlay}>
-            <i className="bx bx-play" /> Phát{movie.episode_current ? ` ${movie.episode_current}` : ''}
+            <i className="bx bx-play" /> Phát {currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}
           </button>
         </div>
 
@@ -155,19 +170,25 @@ export default function TvDetail() {
           <p className="tv-detail__desc">{overview || movie.content?.replace(/<[^>]+>/g, '')}</p>
         )}
 
-        {/* Episodes */}
-        {isSeries && (
+        {isSeries && allEpisodeGroups.length > 0 && (
           <div className="tv-detail__episodes">
             <h3 className="tv-detail__section-title">Tập phim</h3>
+
+            <GroupDropdown
+              groups={allEpisodeGroups}
+              selected={selectedGroup}
+              onChange={setSelectedGroup}
+            />
+
             <div className="tv-detail__ep-list">
-              {episodeList.map((ep, idx) => (
+              {groupEpisodes.map((ep, idx) => (
                 <EpisodeButton
-                  key={ep.slug || ep.name}
+                  key={ep.episodeKey || ep.slug || ep.name}
                   ep={ep}
                   label={formatEpisodeDisplayName(ep.name)}
-                  row={100 + Math.floor(idx / 6)}
+                  row={110 + Math.floor(idx / 6)}
                   col={idx % 6}
-                  selected={currentEp?.slug === ep.slug || currentEp?.name === ep.name}
+                  selected={currentEp?.episodeKey === ep.episodeKey || currentEp?.slug === ep.slug || currentEp?.name === ep.name}
                   onClick={() => selectEpisode(ep)}
                 />
               ))}
@@ -176,7 +197,6 @@ export default function TvDetail() {
         )}
       </div>
 
-      {/* Similar */}
       {similar.length > 0 && (
         <ContentRow title="Phim tương tự" items={similar.map(s => ({ ...s, name: s.title || s.name }))} rowId="similar" row={200} />
       )}
