@@ -1,15 +1,13 @@
 import React, { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-import { isTauri } from "../tauri-bridge";
 
 const Home = lazy(() => import("../pages/Home"));
 const Catalog = lazy(() => import("../pages/Catalog"));
-const Detail = lazy(() => import("../pages/detail/Detail"));
 const TvDetail = lazy(() => import("../pages/detail/TvDetail"));
 const TvSearch = lazy(() => import("../pages/TvSearch"));
 
 function MovieRoute() {
-  return isTauri() ? <TvDetail /> : <Detail />;
+  return <TvDetail />;
 }
 
 // Loading fallback component
