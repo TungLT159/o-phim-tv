@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './content-row.scss';
 import { useFocusable } from '../../context/FocusContext';
+import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 
-const posterUrl = (item) => {
-  if (item.thumb_url) return `https://img.ophim.live/uploads/movies/${item.thumb_url}`;
-  if (item.poster_url) return item.poster_url;
-  return '/poster-mau.png';
-};
+const FALLBACK = '/poster-mau.png';
 
 function FocusCard({ item, row, col }) {
   const { ref, focused } = useFocusable(1, row, col);
+  const [poster, setPoster] = useState(FALLBACK);
+
+  useEffect(() => {
+    if (!item?.tmdb) return;
+    fetchTMDBImages(item.tmdb).then(({ posterUrl }) => {
+      if (posterUrl) setPoster(posterUrl);
+    });
+  }, [item]);
 
   return (
     <Link
@@ -19,7 +24,7 @@ function FocusCard({ item, row, col }) {
       ref={ref}
     >
       <div className="content-row__poster">
-        <img src={posterUrl(item)} alt={item.name || item.title || ''} loading="lazy" />
+        <img src={poster} alt={item.name || item.title || ''} loading="lazy" />
         {(item.episode_current || item.quality) && (
           <span className="content-row__badge">{item.episode_current || item.quality}</span>
         )}
