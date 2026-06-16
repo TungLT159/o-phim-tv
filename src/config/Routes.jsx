@@ -8,6 +8,10 @@ const Detail = lazy(() => import("../pages/detail/Detail"));
 const TvDetail = lazy(() => import("../pages/detail/TvDetail"));
 const TvSearch = lazy(() => import("../pages/TvSearch"));
 
+function MovieRoute() {
+  return isTauri() ? <TvDetail /> : <Detail />;
+}
+
 // Loading fallback component
 const PageLoader = () => (
   <div style={{
@@ -29,7 +33,7 @@ export default function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/tim-kiem" element={<TvSearch />} />
         <Route path="/:category/search/:keyword" element={<Catalog />} />
-        <Route path="/movie/:id" element={isTauri() ? <TvDetail /> : <Detail />} />
+        <Route path="/movie/:id" element={<MovieRoute />} />
         <Route path="/:category/:type" element={<Catalog />} />
         
         {/* fallback route */}
