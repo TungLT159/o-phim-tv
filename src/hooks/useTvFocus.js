@@ -7,49 +7,59 @@ function getFocusable() {
   return document.querySelectorAll(FOCUSABLE);
 }
 
+function isInside(parent, child) {
+  if (!parent || !child) return false;
+  let el = child;
+  while (el) {
+    if (el === parent) return true;
+    el = el.parentElement;
+  }
+  return false;
+}
+
 function findHorizontal(elements, current, direction) {
-  // Try sibling first for row navigation
+  // Try DOM sibling first — works for cards in same ContentRow
   const sibling = direction === 'ArrowRight'
     ? current.nextElementSibling
     : current.previousElementSibling;
 
-  if (sibling && (sibling.matches?.(FOCUSABLE) || sibling.querySelector?.(FOCUSABLE))) {
-    return sibling.matches?.(FOCUSABLE) ? sibling : sibling.querySelector(FOCUSABLE);
+  if (sibling && sibling.matches?.(FOCUSABLE)) {
+    return sibling;
   }
 
-  // Spatial: same Y row only
   const rect = current.getBoundingClientRect();
   let best = null;
-  let bestGap = Infinity;
+  let bestScore = Infinity;
   const sign = direction === 'ArrowRight' ? 1 : -1;
 
   elements.forEach((el) => {
-    if (el === current || el === document.body) return;
+    if (el === current || el === document.body || isInside(current, el)) return;
     const r = el.getBoundingClientRect();
 
     const gap = sign > 0 ? (r.left - rect.right) : (rect.left - r.right);
     if (gap <= 0) return;
 
+    // Must be in same Y row
     const targetMidY = r.top + r.height / 2;
-    if (targetMidY < rect.top - 8 || targetMidY > rect.bottom + 8) return;
+    if (targetMidY < rect.top - 10 || targetMidY > rect.bottom + 10) return;
 
-    if (gap < bestGap) {
-      bestGap = gap;
+    if (gap < bestScore) {
+      bestScore = gap;
       best = el;
     }
   });
 
   if (best) return best;
 
-  // Left from first item: find any element to the left (sidebar)
+  // Left from first item: any element to the left (sidebar)
   if (direction === 'ArrowLeft') {
     elements.forEach((el) => {
-      if (el === current || el === document.body) return;
+      if (el === current || el === document.body || isInside(current, el)) return;
       const r = el.getBoundingClientRect();
       const gap = rect.left - r.right;
       if (gap <= 0) return;
-      if (gap < bestGap) {
-        bestGap = gap;
+      if (gap < bestScore) {
+        bestScore = gap;
         best = el;
       }
     });
@@ -61,44 +71,25 @@ function findHorizontal(elements, current, direction) {
 function findVertical(elements, current, direction) {
   const rect = current.getBoundingClientRect();
   let best = null;
-  let bestGap = Infinity;
+  let bestScore = Infinity;
   const sign = direction === 'ArrowDown' ? 1 : -1;
+  const currentMidX = rect.left + rect.width / 2;
 
-  // Phase 1: X-center overlaps current element
+  // Score = vertical gap * 3 + horizontal distance
+  // This finds the closest element below, preferring same column
   elements.forEach((el) => {
-    if (el === current || el === document.body) return;
+    if (el === current || el === document.body || isInside(current, el)) return;
     const r = el.getBoundingClientRect();
 
     const gap = sign > 0 ? (r.top - rect.bottom) : (rect.top - r.bottom);
     if (gap <= 0) return;
 
     const targetMidX = r.left + r.width / 2;
-    if (targetMidX < rect.left - 8 || targetMidX > rect.right + 8) return;
+    const dx = Math.abs(targetMidX - currentMidX);
+    const score = gap * 3 + dx;
 
-    if (gap < bestGap) {
-      bestGap = gap;
-      best = el;
-    }
-  });
-
-  if (best) return best;
-
-  // Phase 2: same column, wider X tolerance
-  elements.forEach((el) => {
-    if (el === current || el === document.body) return;
-    const r = el.getBoundingClientRect();
-
-    const gap = sign > 0 ? (r.top - rect.bottom) : (rect.top - r.bottom);
-    if (gap <= 0) return;
-
-    const targetMidX = r.left + r.width / 2;
-    const curMidX = rect.left + rect.width / 2;
-    const dx = Math.abs(targetMidX - curMidX);
-    if (dx > rect.width * 2.5) return;
-
-    const score = gap + dx;
-    if (score < bestGap) {
-      bestGap = score;
+    if (score < bestScore) {
+      bestScore = score;
       best = el;
     }
   });
@@ -117,7 +108,7 @@ export function useTvFocus() {
     const timer = setTimeout(() => {
       const hero = document.querySelector('.tv-hero');
       if (hero) hero.focus();
-    }, 300);
+    }, 400);
 
     const handleKeyDown = (e) => {
       const focused = document.activeElement;
