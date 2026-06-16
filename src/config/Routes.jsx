@@ -1,10 +1,10 @@
 import React, { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 
-// Lazy load page components
 const Home = lazy(() => import("../pages/Home"));
 const Catalog = lazy(() => import("../pages/Catalog"));
 const Detail = lazy(() => import("../pages/detail/Detail"));
+const TvSearch = lazy(() => import("../pages/TvSearch"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -25,6 +25,7 @@ export default function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/tim-kiem" element={<TvSearch />} />
         <Route path="/:category/search/:keyword" element={<Catalog />} />
         <Route path="/movie/:id" element={<Detail />} />
         <Route path="/:category/:type" element={<Catalog />} />

@@ -169,3 +169,28 @@ iframe{
 .tv-layout:has(.tv-sidebar--expanded) {
   margin-left: 220px;
 }
+
+/* ================= BACK TO TOP ================= */
+.back-to-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.25rem;
+  margin: 2rem 2.5rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+
+  i { font-size: 1.4rem; }
+
+  &--focused {
+    background: rgba(255, 107, 53, 0.15);
+    color: #ff6b35;
+    border-color: #ff6b35;
+  }
+}

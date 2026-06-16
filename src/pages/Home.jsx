@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { OutlineButton } from "../components/button/Button";
 import HeroSlide from "../components/hero-slide/HeroSlide";
 import MovieList from "../components/movie-list/MovieList";
@@ -11,6 +11,7 @@ import { category, movieType } from "../api/tmdbApi";
 import tmdbApi from "../api/tmdbApi";
 import { Helmet } from "react-helmet";
 import { isTauri } from "../tauri-bridge";
+import { useFocusable, useFocus } from "../context/FocusContext";
 
 const TV_ROWS = [
   { title: "Phim mới cập nhật", type: movieType.phimMoi },
@@ -42,6 +43,30 @@ const GENRE_ROWS = [
   { title: "Viễn Tưởng", type: "vien-tuong" },
   { title: "Võ Thuật", type: "vo-thuat" },
 ];
+
+function BackToTop({ row }) {
+  const { ref, focused } = useFocusable(1, row, 0);
+  const scroll = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      const hero = document.querySelector('.tv-hero');
+      hero?.focus();
+    }, 400);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={`back-to-top ${focused ? 'back-to-top--focused' : ''}`}
+      onClick={scroll}
+      role="button"
+      tabIndex={-1}
+    >
+      <i className="bx bx-chevrons-up" />
+      <span>Lên đầu trang</span>
+    </div>
+  );
+}
 
 function TvHome() {
   const [heroMovies, setHeroMovies] = useState([]);
@@ -79,6 +104,8 @@ function TvHome() {
       {GENRE_ROWS.map((row, idx) => (
         <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={TV_ROWS.length + COUNTRY_ROWS.length + idx + 1} />
       ))}
+
+      <BackToTop row={TV_ROWS.length + COUNTRY_ROWS.length + GENRE_ROWS.length + 1} />
     </div>
   );
 }
