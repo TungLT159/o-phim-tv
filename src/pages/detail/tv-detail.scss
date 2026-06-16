@@ -139,7 +139,7 @@
     i { font-size: 1.6rem; }
 
     &:focus-visible,
-    &:hover {
+    &--focused {
       background: #ff1a1a;
       transform: scale(1.05);
       box-shadow: 0 0 0 3px #ff6b35;

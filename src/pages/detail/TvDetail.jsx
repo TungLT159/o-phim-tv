@@ -7,7 +7,7 @@ import { useEpisodeCatalog } from './useEpisodeCatalog';
 import { useEpisodePlayback } from './useEpisodePlayback';
 import CustomVideoPlayer from '../../components/video-player/CustomVideoPlayer';
 import ContentRow from '../../components/content-row/ContentRow';
-import { useFocusable } from '../../context/FocusContext';
+import { useFocusable, useFocus } from '../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../utils/episodeDisplayName';
 import '../detail/detail.scss';
 import './tv-detail.scss';
@@ -27,6 +27,15 @@ function GroupDropdown({ groups, selected, onChange }) {
         ))}
       </select>
     </div>
+  );
+}
+
+function PlayButton({ label, onClick }) {
+  const { ref, focused } = useFocusable(1, 1, 0);
+  return (
+    <button ref={ref} className={`tv-detail__play-btn ${focused ? 'tv-detail__play-btn--focused' : ''}`} onClick={onClick}>
+      <i className="bx bx-play" /> {label}
+    </button>
   );
 }
 
@@ -101,6 +110,15 @@ export default function TvDetail() {
   const handlePlay = useCallback(() => setPlaying(true), []);
   const handleClose = useCallback(() => setPlaying(false), []);
 
+  // Auto-focus Play button on load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const btn = document.querySelector('.tv-detail__play-btn');
+      if (btn) btn.focus();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [id]);
+
   if (loadError) {
     return <div className="tv-detail tv-detail--error"><i className="bx bx-error-circle" /><p>{loadError}</p></div>;
   }
@@ -152,9 +170,10 @@ export default function TvDetail() {
         </div>
 
         <div className="tv-detail__actions">
-          <button className="tv-detail__play-btn" onClick={handlePlay}>
-            <i className="bx bx-play" /> Phát {currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}
-          </button>
+          <PlayButton
+            label={`Phát ${currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}`}
+            onClick={handlePlay}
+          />
         </div>
 
         <div className="tv-detail__categories">
