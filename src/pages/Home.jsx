@@ -26,18 +26,35 @@ const TV_ROWS = [
   { title: "Phim sắp chiếu", type: "phim-sap-chieu" },
 ];
 
+const COUNTRY_ROWS = [
+  { title: "Phim Việt Nam", type: "viet-nam" },
+  { title: "Phim Hàn Quốc", type: "han-quoc" },
+  { title: "Phim Âu Mỹ", type: "au-my" },
+  { title: "Phim Nhật Bản", type: "nhat-ban" },
+  { title: "Phim Trung Quốc", type: "trung-quoc" },
+];
+
+const GENRE_ROWS = [
+  { title: "Hành Động", type: "hanh-dong" },
+  { title: "Tình Cảm", type: "tinh-cam" },
+  { title: "Hài Hước", type: "hai-huoc" },
+  { title: "Kinh Dị", type: "kinh-di" },
+  { title: "Viễn Tưởng", type: "vien-tuong" },
+  { title: "Võ Thuật", type: "vo-thuat" },
+];
+
 function TvHome() {
   const [heroMovies, setHeroMovies] = useState([]);
   const [rows, setRows] = useState({});
 
   useEffect(() => {
-    const types = TV_ROWS.map(r => r.type);
-    Promise.all(types.map(t => tmdbApi.getMoviesList(t, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } }))))
+    const allTypes = [...TV_ROWS.map(r => r.type), ...COUNTRY_ROWS.map(r => r.type), ...GENRE_ROWS.map(r => r.type)];
+    Promise.all(allTypes.map(t => tmdbApi.getMoviesList(t, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } }))))
       .then(results => {
         const map = {};
         const all = results[0].data?.items || [];
         setHeroMovies(all.slice(0, 6));
-        TV_ROWS.forEach((r, i) => {
+        [...TV_ROWS, ...COUNTRY_ROWS, ...GENRE_ROWS].forEach((r, i) => {
           map[r.type] = results[i].data?.items || [];
         });
         setRows(map);
@@ -54,13 +71,13 @@ function TvHome() {
       <TvHero items={heroMovies} />
 
       {TV_ROWS.map((row, idx) => (
-        <ContentRow
-          key={row.type}
-          title={row.title}
-          items={rows[row.type] || []}
-          rowId={row.type}
-          row={idx + 1}
-        />
+        <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={idx + 1} />
+      ))}
+      {COUNTRY_ROWS.map((row, idx) => (
+        <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={TV_ROWS.length + idx + 1} />
+      ))}
+      {GENRE_ROWS.map((row, idx) => (
+        <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={TV_ROWS.length + COUNTRY_ROWS.length + idx + 1} />
       ))}
     </div>
   );
