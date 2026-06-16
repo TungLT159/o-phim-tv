@@ -53,12 +53,13 @@ function TvHome() {
 
       <TvHero items={heroMovies} />
 
-      {TV_ROWS.map(row => (
+      {TV_ROWS.map((row, idx) => (
         <ContentRow
           key={row.type}
           title={row.title}
           items={rows[row.type] || []}
           rowId={row.type}
+          row={idx + 1}
         />
       ))}
     </div>

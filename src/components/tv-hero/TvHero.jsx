@@ -5,6 +5,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import tmdbApi, { movieType } from '../../api/tmdbApi';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 import axiosClient from '../../api/axiosClient';
+import { useFocusable } from '../../context/FocusContext';
 import './tv-hero.scss';
 
 const HeroItem = ({ item }) => {
@@ -86,6 +87,7 @@ const HeroItem = ({ item }) => {
 
 const TvHero = () => {
   const [items, setItems] = useState([]);
+  const { ref, focused } = useFocusable(1, 0, 0);
 
   useEffect(() => {
     tmdbApi
@@ -100,7 +102,7 @@ const TvHero = () => {
   if (!items.length) return null;
 
   return (
-    <div className="tv-hero" tabIndex="0" aria-label="Phim nổi bật">
+    <div className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`} ref={ref} aria-label="Phim nổi bật">
       <Swiper
         modules={[Autoplay]}
         grabCursor={false}

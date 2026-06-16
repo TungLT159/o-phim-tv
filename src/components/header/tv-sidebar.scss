@@ -209,7 +209,8 @@ $transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover,
-    &:focus-visible {
+    &:focus-visible,
+    &--focused {
       background: rgba(255, 255, 255, 0.08);
       color: #fff;
       outline: none;
@@ -292,7 +293,8 @@ $transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     &:hover,
-    &:focus-visible {
+    &:focus-visible,
+    &--focused {
       background: rgba(255, 255, 255, 0.06);
       color: #fff;
       outline: none;

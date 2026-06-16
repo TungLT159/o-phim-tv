@@ -48,7 +48,8 @@
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     transform-origin: center center;
 
-    &:focus-visible {
+    &:focus-visible,
+    &--focused {
       outline: none;
       transform: scale(1.1);
       z-index: 10;
