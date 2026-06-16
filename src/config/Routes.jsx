@@ -1,9 +1,11 @@
 import React, { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
+import { isTauri } from "../tauri-bridge";
 
 const Home = lazy(() => import("../pages/Home"));
 const Catalog = lazy(() => import("../pages/Catalog"));
 const Detail = lazy(() => import("../pages/detail/Detail"));
+const TvDetail = lazy(() => import("../pages/detail/TvDetail"));
 const TvSearch = lazy(() => import("../pages/TvSearch"));
 
 // Loading fallback component
@@ -27,7 +29,7 @@ export default function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/tim-kiem" element={<TvSearch />} />
         <Route path="/:category/search/:keyword" element={<Catalog />} />
-        <Route path="/movie/:id" element={<Detail />} />
+        <Route path="/movie/:id" element={isTauri() ? <TvDetail /> : <Detail />} />
         <Route path="/:category/:type" element={<Catalog />} />
         
         {/* fallback route */}
