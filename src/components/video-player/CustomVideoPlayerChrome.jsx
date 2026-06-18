@@ -53,8 +53,6 @@ const CustomVideoPlayerChrome = ({
   onPrevEpisode,
   onNextEpisode,
   onSeekForward,
-  onToggleMute,
-  onVolumeChange,
   canUsePictureInPicture,
   onTogglePictureInPicture,
   episodes,
@@ -67,14 +65,9 @@ const CustomVideoPlayerChrome = ({
     isPlaying,
     currentTime,
     duration,
-    volume,
-    isMuted,
     isPictureInPicture,
   } = playbackState;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const volumePercent = `${(isMuted ? 0 : volume) * 100}%`;
-  const volumeIcon =
-    isMuted || volume === 0 ? "bx-volume-mute" : "bx-volume-full";
   const canGoPrevEpisode = Boolean(episodeNavigation?.canGoPrevEpisode);
   const canGoNextEpisode = Boolean(episodeNavigation?.canGoNextEpisode);
   const hasEpisodeNavigation = Boolean(onPrevEpisode || onNextEpisode);
@@ -101,6 +94,7 @@ const CustomVideoPlayerChrome = ({
           step="0.1"
           value={currentTime}
           onChange={onSeek}
+          data-tv-focusable="true"
           aria-label="Tua video"
           style={{ "--progress": `${progressPercent}%` }}
         />
@@ -188,27 +182,6 @@ const CustomVideoPlayerChrome = ({
             <span>Tự phát</span>
           </button>
         )}
-        <div className="custom-video-player__volume">
-            <button
-              className="custom-video-player__control-btn custom-video-player__control-btn--mute"
-              data-tv-focusable="true"
-              type="button"
-            onClick={onToggleMute}
-            aria-label={isMuted ? "Bật âm" : "Tắt âm"}
-          >
-            <i className={`bx ${volumeIcon}`} />
-          </button>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={isMuted ? 0 : volume}
-            onChange={onVolumeChange}
-            aria-label="Âm lượng"
-            style={{ "--progress": volumePercent }}
-          />
-        </div>
         {canUsePictureInPicture && (
           <button
             className="custom-video-player__control-btn custom-video-player__control-btn--picture-in-picture"

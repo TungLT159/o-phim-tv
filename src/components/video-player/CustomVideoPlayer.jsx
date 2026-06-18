@@ -31,6 +31,7 @@ const formatFpsMetric = (value) => {
 const PLAYER_FOCUSABLE_SELECTOR = [
   ".custom-video-player__close-btn",
   ".custom-video-player__center-play",
+  ".custom-video-player__progress",
   ".custom-video-player__chrome button:not(:disabled)",
   ".custom-video-player__autoplay-card button:not(:disabled)",
 ].join(", ");
@@ -95,8 +96,6 @@ const CustomVideoPlayer = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -221,28 +220,6 @@ const CustomVideoPlayer = ({
     [getVideo],
   );
 
-  const handleVolumeChange = useCallback(
-    (event) => {
-      const video = getVideo();
-      if (!video) return;
-
-      const nextVolume = Number(event.target.value);
-      video.volume = nextVolume;
-      video.muted = nextVolume === 0;
-      setVolume(nextVolume);
-      setIsMuted(video.muted);
-    },
-    [getVideo],
-  );
-
-  const toggleMute = useCallback(() => {
-    const video = getVideo();
-    if (!video) return;
-
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  }, [getVideo]);
-
   const togglePictureInPicture = useCallback(() => {
     const video = getVideo();
     if (!document.pictureInPictureEnabled || !video?.requestPictureInPicture) {
@@ -315,10 +292,6 @@ const CustomVideoPlayer = ({
       setIsLoading(false);
       setHasError(true);
     };
-    const syncVolume = () => {
-      setVolume(video.volume);
-      setIsMuted(video.muted);
-    };
     const handleEnterPictureInPicture = () => setIsPictureInPicture(true);
     const handleLeavePictureInPicture = () => setIsPictureInPicture(false);
 
@@ -328,7 +301,6 @@ const CustomVideoPlayer = ({
         document.pictureInPictureEnabled && video.requestPictureInPicture,
       ),
     );
-    syncVolume();
 
     video.addEventListener("play", syncPlayback);
     video.addEventListener("pause", syncPlayback);
@@ -338,7 +310,6 @@ const CustomVideoPlayer = ({
     video.addEventListener("canplay", handleReady);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("error", handleError);
-    video.addEventListener("volumechange", syncVolume);
     video.addEventListener(
       "enterpictureinpicture",
       handleEnterPictureInPicture,
@@ -357,7 +328,6 @@ const CustomVideoPlayer = ({
       video.removeEventListener("canplay", handleReady);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("error", handleError);
-      video.removeEventListener("volumechange", syncVolume);
       video.removeEventListener(
         "enterpictureinpicture",
         handleEnterPictureInPicture,
@@ -405,8 +375,10 @@ const CustomVideoPlayer = ({
         return;
       }
 
+      const isTimelineFocused = event.target?.classList?.contains('custom-video-player__progress');
+
       if (
-        [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "m", "M"].includes(event.key)
+        [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       ) {
         event.preventDefault();
       }
@@ -414,7 +386,9 @@ const CustomVideoPlayer = ({
       switch (event.key) {
         case "Enter": {
           const focused = document.activeElement;
-          if (playerRef.current?.contains(focused) && focused !== document.body) {
+          if (isTimelineFocused) {
+            togglePlay();
+          } else if (playerRef.current?.contains(focused) && focused !== document.body) {
             focused.click?.();
           } else {
             focusFirstPlayerControl();
@@ -429,18 +403,28 @@ const CustomVideoPlayer = ({
           }
           break;
         case "ArrowLeft":
+          if (isTimelineFocused) {
+            seekBy(-10);
+          } else {
+            revealControls();
+            focusByOffset(playerRef.current, false, -1);
+          }
+          break;
+        case "ArrowRight":
+          if (isTimelineFocused) {
+            seekBy(10);
+          } else {
+            revealControls();
+            focusByOffset(playerRef.current, false, 1);
+          }
+          break;
         case "ArrowUp":
           revealControls();
           focusByOffset(playerRef.current, false, -1);
           break;
-        case "ArrowRight":
         case "ArrowDown":
           revealControls();
           focusByOffset(playerRef.current, false, 1);
-          break;
-        case "m":
-        case "M":
-          toggleMute();
           break;
         case "Backspace":
           event.preventDefault();
@@ -465,7 +449,7 @@ const CustomVideoPlayer = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, toggleMute, togglePlay]);
+  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, togglePlay, seekBy]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -878,8 +862,6 @@ const CustomVideoPlayer = ({
           isPlaying,
           currentTime,
           duration,
-          volume,
-          isMuted,
           isFullscreen,
           isPictureInPicture,
         }}
@@ -891,8 +873,6 @@ const CustomVideoPlayer = ({
         onSeekForward={() => seekBy(10)}
         onPrevEpisode={onPrevEpisode}
         onNextEpisode={onNextEpisode}
-        onToggleMute={toggleMute}
-        onVolumeChange={handleVolumeChange}
         onTogglePictureInPicture={togglePictureInPicture}
         onOpenEpisodeList={hasEpisodeDialog ? () => setSidebarOpen(true) : undefined}
         autoPlayEnabled={autoPlayEnabled}
