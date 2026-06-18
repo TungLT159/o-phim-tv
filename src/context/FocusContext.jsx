@@ -11,11 +11,27 @@ const initialState = {
   row: 0,
   col: 0,
   rowMemory: {},
-  grid: { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} },  // Add zones 2-5
+  grid: { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} },
   maxRows: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   isActive: false,
-  activeTrap: null,  // NEW: current trapped zone
-  savedFocus: null,  // NEW: focus to restore after trap cleared
+  activeTrap: null,
+  savedFocus: null,
+  // NEW: Acceleration state
+  accelerationState: {
+    activeKey: null,
+    startTime: null,
+    stepMultiplier: 1,
+    intervalId: null,
+  },
+  // NEW: Zone skip tracking
+  lastFocusPerZone: {
+    0: { row: 0, col: 0 },
+    1: { row: 0, col: 0 },
+    2: { row: 0, col: 0 },
+    3: { row: 0, col: 0 },
+    4: { row: 0, col: 0 },
+    5: { row: 0, col: 0 },
+  },
 };
 
 function reducer(state, action) {
