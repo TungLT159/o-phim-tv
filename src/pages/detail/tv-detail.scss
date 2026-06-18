@@ -1,9 +1,10 @@
 @use "../../scss/" as *;
+@import '../../scss/tv-variables.scss';
 
 .tv-detail {
   position: relative;
   min-height: 100vh;
-  padding-bottom: 3rem;
+  background: $tv-bg;
 
   &--loading, &--error {
     display: flex;
@@ -20,11 +21,11 @@
   &__hero {
     position: relative;
     width: 100%;
-    height: 50vh;
+    height: $tv-detail-hero-height;
     min-height: 350px;
     background-size: cover;
     background-position: center top;
-    background-color: #0f0f0f;
+    background-color: $tv-bg;
   }
 
   &__hero-gradient {
@@ -33,7 +34,7 @@
     left: 0;
     right: 0;
     height: 60%;
-    background: linear-gradient(to top, #0f0f0f 0%, rgba(15, 15, 15, 0.7) 40%, transparent 100%);
+    @include tv-gradient-bottom;
   }
 
   // Fullscreen player
@@ -42,49 +43,31 @@
     inset: 0;
     z-index: 300;
     background: #000;
-    display: flex;
-    flex-direction: column;
-  }
-
-  &__player-close {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 1.05rem;
-    cursor: pointer;
-    z-index: 1;
-
-    i { font-size: 1.3rem; }
-    &:hover { color: #fff; }
   }
 
   &__player .custom-video-player {
-    flex: 1;
-    height: 0;
+    width: 100%;
+    height: 100%;
   }
 
   // Info
   &__info {
-    padding: 1.5rem 2.5rem 0;
+    padding: 0 $tv-padding-x $tv-padding-y;
     max-width: 900px;
   }
 
   &__title {
-    font-size: 2.5rem;
-    font-weight: 800;
+    font-size: $tv-text-hero;
+    font-weight: $tv-weight-bold;
     margin: 0;
-    color: #fff;
+    color: $tv-text-primary;
     letter-spacing: -0.01em;
   }
 
   &__subtitle {
-    font-size: 1.2rem;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.55);
+    font-size: 1.5rem;
+    font-weight: $tv-weight-regular;
+    color: $tv-text-secondary;
     margin: 0.25rem 0 0.75rem;
   }
 
@@ -96,8 +79,8 @@
     flex-wrap: wrap;
 
     span {
-      font-size: 0.95rem;
-      color: rgba(255, 255, 255, 0.7);
+      font-size: $tv-text-card;
+      color: $tv-text-secondary;
       position: relative;
 
       &:not(:last-child)::after {
@@ -113,92 +96,98 @@
     padding: 2px 8px;
     background: rgba(255, 255, 255, 0.15);
     border-radius: 4px;
-    font-weight: 600;
+    font-weight: $tv-weight-semibold;
 
     &::after { display: none !important; }
   }
 
   &__actions {
-    margin: 1rem 0;
+    margin: 1.5rem 0;
   }
 
   &__play-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.75rem 2.5rem;
-    font-size: 1.2rem;
-    font-weight: 700;
-    border: none;
+    gap: 0.75rem;
+    padding: 1rem 2.5rem;
+    height: 56px;
+    font-size: 1.25rem;
+    font-weight: $tv-weight-bold;
+    border: 2px solid transparent;
     border-radius: 6px;
-    background: $main-color;
-    color: #fff;
+    background: #ffffff;
+    color: #000000;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: 
+      transform $tv-focus-transition,
+      border $tv-focus-transition,
+      box-shadow $tv-focus-transition,
+      background $tv-focus-transition;
 
     i { font-size: 1.6rem; }
 
     &:focus-visible,
     &--focused {
-      background: #ff1a1a;
-      transform: scale(1.05);
-      box-shadow: 0 0 0 3px #ff6b35;
+      border: $tv-focus-border;
+      transform: scale(1.1);
+      box-shadow: $tv-focus-shadow;
     }
   }
 
   &__categories {
     display: flex;
-    gap: 0.5rem;
+    gap: $tv-gap-sm;
     flex-wrap: wrap;
     margin: 0.5rem 0 1rem;
   }
 
   &__tag {
-    font-size: 0.8rem;
-    padding: 4px 12px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.7);
+    font-size: $tv-text-small;
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    color: $tv-text-secondary;
     border: 1px solid rgba(255, 255, 255, 0.12);
   }
 
   &__desc {
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.6;
+    font-size: $tv-text-body;
+    color: $tv-text-secondary;
+    line-height: $tv-line-height-relaxed;
     margin: 0.75rem 0 1.5rem;
+    max-width: 50%;
+    @include tv-text-ellipsis(4);
   }
 
   // Episodes
   &__episodes {
-    margin: 1.5rem 0;
+    margin: 2.5rem 0;
   }
 
   &__section-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #fff;
-    margin: 0 0 0.75rem;
+    font-size: $tv-text-section;
+    font-weight: $tv-weight-bold;
+    color: $tv-text-primary;
+    margin: 0 0 $tv-gap-lg;
   }
 
   &__season-select {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    display: grid;
+    gap: $tv-gap-md;
+    margin-bottom: $tv-gap-lg;
   }
 
   &__season-label {
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.6);
+    font-size: $tv-text-body;
+    color: $tv-text-secondary;
   }
 
   &__season-dropdown {
     padding: 0.45rem 2rem 0.45rem 0.75rem;
-    font-size: 0.95rem;
-    font-weight: 600;
+    font-size: $tv-text-body;
+    font-weight: $tv-weight-semibold;
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: $tv-text-primary;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
     outline: none;
@@ -208,46 +197,53 @@
     background-repeat: no-repeat;
     background-position: right 0.6rem center;
 
-    &:focus { border-color: #ff6b35; }
+    &:focus { border-color: $tv-focus-border-color; }
 
     option {
-      background: #1a1a1a;
-      color: #fff;
+      background: $tv-surface;
+      color: $tv-text-primary;
+    }
+  }
+
+  &__season-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $tv-gap-md;
+  }
+
+  &__season-btn {
+    padding: 0.75rem 1.5rem;
+    height: 48px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: $tv-text-secondary;
+    font-size: $tv-text-card;
+    font-weight: $tv-weight-medium;
+    cursor: pointer;
+    transition: 
+      transform $tv-focus-transition,
+      border $tv-focus-transition,
+      box-shadow $tv-focus-transition,
+      background $tv-focus-transition;
+
+    &--active {
+      background: rgba(255, 255, 255, 0.2);
+      color: $tv-text-primary;
+    }
+
+    &--focused,
+    &:focus-visible {
+      border: $tv-focus-border;
+      box-shadow: $tv-focus-shadow;
+      transform: scale(1.1);
     }
   }
 
   &__ep-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  &__ep-btn {
-    padding: 0.55rem 1.1rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.8);
-    cursor: pointer;
-    transition: all 0.15s;
-
-    &--active {
-      background: $main-color;
-      border-color: $main-color;
-      color: #fff;
-    }
-
-    &--focused {
-      border-color: #ff6b35;
-      box-shadow: 0 0 0 2px #ff6b35;
-      transform: scale(1.05);
-    }
-
-    &:disabled {
-      opacity: 0.3;
-      cursor: default;
-    }
+    flex-direction: column;
+    gap: $tv-gap-sm;
+    margin-bottom: 3.5rem;
   }
 }
