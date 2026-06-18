@@ -151,6 +151,7 @@ const CustomVideoPlayer = ({
       );
       video.currentTime = nextTime;
       setCurrentTime(nextTime);
+      setShowControls(true);
       revealControls();
     },
     [getVideo, revealControls],
@@ -404,7 +405,7 @@ const CustomVideoPlayer = ({
           break;
         case "ArrowLeft":
           if (isTimelineFocused) {
-            seekBy(-10);
+            seekBy(-30);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, -1);
@@ -412,7 +413,7 @@ const CustomVideoPlayer = ({
           break;
         case "ArrowRight":
           if (isTimelineFocused) {
-            seekBy(10);
+            seekBy(30);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, 1);
@@ -869,8 +870,8 @@ const CustomVideoPlayer = ({
         episodes={episodes}
         onSeek={handleSeek}
         onTogglePlay={togglePlay}
-        onSeekBackward={() => seekBy(-10)}
-        onSeekForward={() => seekBy(10)}
+        onSeekBackward={() => seekBy(-30)}
+        onSeekForward={() => seekBy(30)}
         onPrevEpisode={onPrevEpisode}
         onNextEpisode={onNextEpisode}
         onTogglePictureInPicture={togglePictureInPicture}

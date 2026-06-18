@@ -121,6 +121,12 @@ export default function TvDetail() {
     // Push a new state to history stack when opening player
     window.history.pushState({ playerOpen: true }, '');
   }, []);
+
+  const handleEpisodeClick = useCallback((ep) => {
+    selectEpisode(ep);
+    setPlaying(true);
+    window.history.pushState({ playerOpen: true }, '');
+  }, [selectEpisode]);
   
   const handleClose = useCallback(() => setPlaying(false), []);
 
@@ -228,7 +234,7 @@ export default function TvDetail() {
                   row={110 + idx}
                   col={0}
                   isCurrent={currentEp?.episodeKey === ep.episodeKey || currentEp?.slug === ep.slug || currentEp?.name === ep.name}
-                  onClick={() => selectEpisode(ep)}
+                  onClick={() => handleEpisodeClick(ep)}
                 />
               ))}
             </div>
