@@ -1,0 +1,140 @@
+// Netflix TV Design Tokens
+// Optimized for 1080p TV (1920x1080) viewing distance
+
+// ============================================
+// Colors
+// ============================================
+
+// Primary
+$tv-bg: #141414;                    // Netflix dark background
+$tv-surface: #1a1a1a;               // Elevated surfaces
+$tv-accent: #e50914;                 // Netflix red for CTAs
+
+// Text
+$tv-text-primary: #ffffff;
+$tv-text-secondary: rgba(255, 255, 255, 0.7);
+$tv-text-tertiary: rgba(255, 255, 255, 0.5);
+
+// Focus
+$tv-focus-border-color: #ffffff;
+$tv-focus-shadow-color: rgba(0, 0, 0, 0.5);
+
+// ============================================
+// Typography
+// ============================================
+
+// Sizes (optimized for TV viewing distance)
+$tv-text-hero: 48px;                // Hero titles
+$tv-text-section: 28px;             // Section headers
+$tv-text-card: 18px;                // Card titles
+$tv-text-body: 16px;                // Body text
+$tv-text-small: 14px;               // Metadata, captions
+$tv-text-xs: 12px;                  // Badges
+
+// Weights
+$tv-weight-bold: 700;
+$tv-weight-semibold: 600;
+$tv-weight-medium: 500;
+$tv-weight-regular: 400;
+
+// Line heights
+$tv-line-height-tight: 1.2;
+$tv-line-height-normal: 1.4;
+$tv-line-height-relaxed: 1.5;
+
+// ============================================
+// Spacing
+// ============================================
+
+$tv-padding-x: 60px;                // Horizontal page padding
+$tv-padding-y: 40px;                // Vertical section padding
+$tv-gap-xs: 4px;
+$tv-gap-sm: 8px;
+$tv-gap-md: 12px;
+$tv-gap-lg: 24px;
+$tv-gap-xl: 32px;
+
+// ============================================
+// Focus System
+// ============================================
+
+$tv-focus-border-width: 4px;
+$tv-focus-border: $tv-focus-border-width solid $tv-focus-border-color;
+$tv-focus-scale: 1.1;
+$tv-focus-shadow: 0 8px 24px $tv-focus-shadow-color;
+$tv-focus-transition-duration: 200ms;
+$tv-focus-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+$tv-focus-transition: $tv-focus-transition-duration $tv-focus-transition-timing;
+
+// ============================================
+// Dimensions
+// ============================================
+
+// Layout
+$tv-hero-height: 65vh;
+$tv-detail-hero-height: 50vh;
+$tv-sidebar-width: 420px;
+
+// Cards
+$tv-card-width: 220px;
+$tv-card-height: 330px;
+$tv-card-ratio: calc(3 / 2);        // Portrait 2:3
+$tv-card-border-radius: 8px;
+
+// Controls (Video Player)
+$tv-control-button-size: 48px;
+$tv-timeline-height: 8px;
+$tv-timeline-thumb-size: 20px;
+
+// Episode Items (TvDetail)
+$tv-episode-item-height: 120px;
+$tv-episode-thumbnail-width: 180px;
+$tv-episode-thumbnail-height: 100px;
+
+// ============================================
+// Mixins
+// ============================================
+
+// Apply to all focusable elements for consistent Netflix-style focus
+@mixin tv-focusable {
+  border: 2px solid transparent;
+  transition: 
+    transform $tv-focus-transition,
+    border $tv-focus-transition,
+    box-shadow $tv-focus-transition,
+    background $tv-focus-transition;
+  
+  &--focused {
+    border: $tv-focus-border;
+    transform: scale($tv-focus-scale);
+    box-shadow: $tv-focus-shadow;
+    z-index: 10;
+  }
+}
+
+// Gradient overlays for readability
+@mixin tv-gradient-left {
+  background: linear-gradient(90deg, $tv-bg 0%, transparent 50%);
+}
+
+@mixin tv-gradient-bottom {
+  background: linear-gradient(0deg, $tv-bg 0%, transparent 60%);
+}
+
+@mixin tv-gradient-bottom-overlay {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
+}
+
+// Text truncation
+@mixin tv-text-ellipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
