@@ -85,7 +85,7 @@ export default function TvDetail() {
     [allEpisodeGroups],
   );
 
-  // Set initial group based on current episode
+  // Set initial group based on current episode (only on mount)
   useEffect(() => {
     if (currentEp && displayEpisodeGroups.length > 1) {
       const groupIndex = displayEpisodeGroups.findIndex((group) =>
@@ -95,11 +95,12 @@ export default function TvDetail() {
           ep.name === currentEp.name,
         ),
       );
-      if (groupIndex >= 0 && groupIndex !== selectedGroup) {
+      if (groupIndex >= 0) {
         setSelectedGroup(groupIndex);
       }
     }
-  }, [currentEp, displayEpisodeGroups, selectedGroup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!movie?.tmdb) return;
