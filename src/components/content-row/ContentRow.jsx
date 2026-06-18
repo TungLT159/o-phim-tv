@@ -17,6 +17,16 @@ function FocusCard({ item, row, col }) {
     });
   }, [item]);
 
+  useEffect(() => {
+    if (focused && ref.current) {
+      ref.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+    }
+  }, [focused, ref]);
+
   return (
     <Link
       to={`/movie/${item.slug}`}
@@ -33,7 +43,6 @@ function FocusCard({ item, row, col }) {
         <span className="content-row__name">{item.name || item.title}</span>
         {item.year && <span className="content-row__year">{item.year}</span>}
       </div>
-      <div className="content-row__focus-ring" aria-hidden="true" />
     </Link>
   );
 }

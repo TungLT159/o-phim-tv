@@ -1,4 +1,5 @@
 @use "../../scss/" as *;
+@import '../../scss/tv-variables.scss';
 
 .content-row {
   position: relative;
@@ -23,10 +24,10 @@
   // Horizontal scroll track
   &__track {
     display: flex;
-    gap: 0.75rem;
+    gap: $tv-gap-md;
     padding: 0.5rem 2rem 0.75rem;
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: visible;
     scroll-snap-type: x proximity;
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -38,30 +39,18 @@
 
   // Individual card
   &__card {
+    @include tv-focusable;
     flex-shrink: 0;
-    width: 180px;
+    width: $tv-card-width;
     text-decoration: none;
     color: #fff;
     position: relative;
-    border-radius: 8px;
+    border-radius: $tv-card-border-radius;
     overflow: visible;
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     transform-origin: center center;
 
-    &:focus-visible,
     &--focused {
-      outline: none;
-      transform: scale(1.1);
-      z-index: 10;
-
-      .content-row__focus-ring {
-        opacity: 1;
-      }
-
-      .content-row__info {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      transform: scale($tv-focus-scale) translateY(-8px);
     }
 
     &:active {
@@ -72,8 +61,8 @@
   &__poster {
     position: relative;
     width: 100%;
-    padding-top: 140%;
-    border-radius: 8px;
+    height: $tv-card-height;
+    border-radius: $tv-card-border-radius;
     overflow: hidden;
     background: #1a1a1a;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -85,6 +74,23 @@
       height: 100%;
       object-fit: cover;
     }
+
+    // Gradient overlay for info text
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      @include tv-gradient-bottom-overlay;
+      opacity: 0;
+      transition: opacity $tv-focus-transition;
+    }
+  }
+
+  .content-row__card--focused &__poster::after {
+    opacity: 1;
   }
 
   &__badge {
@@ -97,41 +103,38 @@
     background: $main-color;
     color: #fff;
     border-radius: 4px;
-  }
-
-  &__focus-ring {
-    position: absolute;
-    inset: -4px;
-    border-radius: 12px;
-    border: 3px solid #ff6b35;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    pointer-events: none;
+    z-index: 1;
   }
 
   &__info {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
     opacity: 0;
     transform: translateY(4px);
-    transition: all 0.25s ease;
-    padding: 6px 4px 0;
+    transition: all $tv-focus-transition;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    z-index: 1;
+  }
+
+  .content-row__card--focused &__info {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   &__name {
-    font-size: 0.85rem;
-    font-weight: 600;
+    font-size: $tv-text-card;
+    font-weight: $tv-weight-semibold;
     line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    @include tv-text-ellipsis(2);
   }
 
   &__year {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: $tv-text-small;
+    color: $tv-text-tertiary;
   }
 }
 
