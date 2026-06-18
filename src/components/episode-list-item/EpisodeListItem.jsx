@@ -61,6 +61,7 @@ const EpisodeListItem = ({
       <div className="episode-list-item__info">
         <div className="episode-list-item__header">
           <span className="episode-list-item__number">{episodeNumber}</span>
+          <span className="episode-list-item__title">{episode.name}</span>
         </div>
         {episodeDescription && (
           <p className="episode-list-item__description">{episodeDescription}</p>
