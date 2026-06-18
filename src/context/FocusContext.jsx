@@ -10,10 +10,12 @@ const initialState = {
   zone: 1,
   row: 0,
   col: 0,
-  rowMemory: {},  // { [rowKey]: lastCol }
-  grid: { 0: {}, 1: {} },  // zone -> row -> col -> ref/callback
-  maxRows: { 0: 0, 1: 0 },  // zone -> max row count
+  rowMemory: {},
+  grid: { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} },  // Add zones 2-5
+  maxRows: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   isActive: false,
+  activeTrap: null,  // NEW: current trapped zone
+  savedFocus: null,  // NEW: focus to restore after trap cleared
 };
 
 function reducer(state, action) {
@@ -26,6 +28,12 @@ function reducer(state, action) {
       grid[zone][row][col] = ref;
       const maxRows = { ...state.maxRows };
       maxRows[zone] = Math.max(maxRows[zone] || 0, row);
+      if (!grid[state.zone]?.[state.row]?.[state.col]) {
+        const first = findFirstFocusable(grid[state.zone] || grid[zone]);
+        if (first) {
+          return { ...state, grid, maxRows, zone: state.zone in grid ? state.zone : zone, row: first.row, col: first.col };
+        }
+      }
       return { ...state, grid, maxRows };
     }
     case 'UNREGISTER': {
@@ -38,37 +46,72 @@ function reducer(state, action) {
     }
     case 'NAVIGATE': {
       const { direction } = action;
-      const { zone, row, col, grid, maxRows, rowMemory } = state;
+      const { zone, row, col, grid, maxRows, rowMemory, activeTrap } = state;
 
+      // If focus trapped, only allow navigation within trapped zone
+      if (activeTrap !== null && zone === activeTrap) {
+        const trapGrid = grid[activeTrap];
+        let newRow = row;
+        let newCol = col;
+
+        if (direction === 'ArrowDown') {
+          newRow = findNextRow(trapGrid, row);
+          if (newRow !== row) {
+            const rowCols = Object.keys(trapGrid?.[newRow] || {}).map(Number).sort((a,b) => a-b);
+            if (rowCols.length) {
+              newCol = rowCols.reduce((prev, curr) =>
+                Math.abs(curr - col) < Math.abs(prev - col) ? curr : prev
+              );
+            }
+          }
+        } else if (direction === 'ArrowUp') {
+          newRow = findPrevRow(trapGrid, row);
+          if (newRow !== row) {
+            const rowCols = Object.keys(trapGrid?.[newRow] || {}).map(Number).sort((a,b) => a-b);
+            if (rowCols.length) {
+              newCol = rowCols.reduce((prev, curr) =>
+                Math.abs(curr - col) < Math.abs(prev - col) ? curr : prev
+              );
+            }
+          }
+        } else if (direction === 'ArrowRight') {
+          const cols = Object.keys(trapGrid?.[row] || {}).map(Number).sort((a,b) => a-b);
+          const nextCol = cols.find(c => c > col);
+          if (nextCol !== undefined) newCol = nextCol;
+        } else if (direction === 'ArrowLeft') {
+          const cols = Object.keys(trapGrid?.[row] || {}).map(Number).sort((a,b) => a-b);
+          const prevCol = cols.slice().reverse().find(c => c < col);
+          if (prevCol !== undefined) newCol = prevCol;
+        }
+
+        return { ...state, row: newRow, col: newCol };
+      }
+
+      // Normal navigation (no trap active) - existing logic
       let newZone = zone;
       let newRow = row;
       let newCol = col;
 
       if (direction === 'ArrowRight') {
-        // Find next col in same row
         const cols = Object.keys(grid[zone]?.[row] || {}).map(Number).sort((a,b) => a-b);
         const nextCol = cols.find(c => c > col);
         if (nextCol !== undefined) {
           newCol = nextCol;
         }
       } else if (direction === 'ArrowLeft') {
-        // Find prev col in same row, or cross to sidebar
         const cols = Object.keys(grid[zone]?.[row] || {}).map(Number).sort((a,b) => a-b);
         const prevCol = cols.slice().reverse().find(c => c < col);
         if (prevCol !== undefined) {
           newCol = prevCol;
         } else if (zone === 1) {
-          // Cross to sidebar — find closest Y row
           const sidebarRow = findNearestRow(grid[0], row, maxRows[0]);
           newZone = 0;
           newRow = sidebarRow;
           newCol = 0;
         }
       } else if (direction === 'ArrowDown') {
-        const rowKey = `${zone}-${row}`;
-        newRow = Math.min(row + 1, maxRows[zone] || 0);
+        newRow = findNextRow(grid[zone], row);
         if (newRow !== row) {
-          // Use memory or find closest col
           const memKey = `${zone}-${newRow}`;
           if (rowMemory[memKey] !== undefined) {
             newCol = rowMemory[memKey];
@@ -82,8 +125,8 @@ function reducer(state, action) {
           }
         }
       } else if (direction === 'ArrowUp') {
-        newRow = Math.max(row - 1, 0);
-        if (newRow !== row && zone === 1) {
+        newRow = findPrevRow(grid[zone], row);
+        if (newRow !== row) {
           const memKey = `${zone}-${newRow}`;
           if (rowMemory[memKey] !== undefined) {
             newCol = rowMemory[memKey];
@@ -96,16 +139,13 @@ function reducer(state, action) {
             }
           }
         }
-        // Row 0 in zone 0 is Home
       }
 
-      // Save memory when moving away from row
       const nextMemory = { ...rowMemory };
       if (newRow !== row) {
         nextMemory[`${zone}-${row}`] = col;
       }
 
-      // If crossing from sidebar to content (Right from zone 0)
       if (direction === 'ArrowRight' && zone === 0) {
         const contentRow = findNearestRow(grid[1], row, maxRows[1]);
         newZone = 1;
@@ -125,6 +165,25 @@ function reducer(state, action) {
       requestAnimationFrame(() => window.scrollTo(0, saved.scrollY));
       return { ...state, zone: saved.zone, row: saved.row, col: saved.col };
     }
+    case 'SET_TRAP': {
+      const { zone: trapZone } = action;
+      return {
+        ...state,
+        activeTrap: trapZone,
+        savedFocus: { zone: state.zone, row: state.row, col: state.col },
+      };
+    }
+    case 'CLEAR_TRAP': {
+      const restored = state.savedFocus || { zone: state.zone, row: state.row, col: state.col };
+      return {
+        ...state,
+        activeTrap: null,
+        savedFocus: null,
+        zone: restored.zone,
+        row: restored.row,
+        col: restored.col,
+      };
+    }
     default:
       return state;
   }
@@ -137,6 +196,30 @@ function findNearestRow(zoneGrid, targetRow, maxRow) {
   return rows.reduce((prev, curr) =>
     Math.abs(curr - targetRow) < Math.abs(prev - targetRow) ? curr : prev
   );
+}
+
+function findFirstFocusable(zoneGrid) {
+  if (!zoneGrid) return null;
+  const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
+  for (const row of rows) {
+    const cols = Object.keys(zoneGrid[row] || {}).map(Number).sort((a,b) => a-b);
+    if (cols.length) return { row, col: cols[0] };
+  }
+  return null;
+}
+
+function findNextRow(zoneGrid, currentRow) {
+  if (!zoneGrid) return currentRow;
+  const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
+  const next = rows.find(r => r > currentRow);
+  return next !== undefined ? next : currentRow;
+}
+
+function findPrevRow(zoneGrid, currentRow) {
+  if (!zoneGrid) return currentRow;
+  const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
+  const prev = rows.slice().reverse().find(r => r < currentRow);
+  return prev !== undefined ? prev : currentRow;
 }
 
 export function FocusProvider({ children }) {
@@ -162,21 +245,45 @@ export function FocusProvider({ children }) {
     dispatch({ type: 'RESTORE_FOCUS' });
   }, []);
 
-  // Focus element when state changes
-  useEffect(() => {
+  const setTrap = useCallback((trapZone) => {
+    dispatch({ type: 'SET_TRAP', zone: trapZone });
+  }, []);
+
+  const clearTrap = useCallback(() => {
+    dispatch({ type: 'CLEAR_TRAP' });
+  }, []);
+
+  const focusCurrent = useCallback((scrollBehavior = 'smooth') => {
     const key = `${state.zone}-${state.row}-${state.col}`;
     const domRef = refMap.current.get(key);
     if (domRef && domRef.current) {
       domRef.current.focus();
-      domRef.current.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+      domRef.current.scrollIntoView?.({
+        block: 'nearest',
+        inline: 'nearest',
+        behavior: scrollBehavior,
+      });
     }
   }, [state.zone, state.row, state.col]);
+
+  // Focus element when state changes
+  useEffect(() => {
+    focusCurrent('smooth');
+  }, [focusCurrent]);
+
+  useEffect(() => {
+    if (!isTv) return undefined;
+    const timer = setTimeout(() => focusCurrent('auto'), 0);
+    return () => clearTimeout(timer);
+  }, [focusCurrent, isTv]);
 
   // Keyboard handler
   useEffect(() => {
     if (!isTv) return;
 
     const handleKeyDown = (e) => {
+      if (e.target?.closest?.('.custom-video-player')) return;
+
       switch (e.key) {
         case 'ArrowUp':
         case 'ArrowDown':
@@ -214,6 +321,8 @@ export function FocusProvider({ children }) {
     unregister,
     saveFocus,
     restoreFocus,
+    setTrap,
+    clearTrap,
   };
 
   return React.createElement(FocusContext.Provider, { value }, children);
