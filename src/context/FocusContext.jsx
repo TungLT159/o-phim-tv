@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { isTauri } from '../tauri-bridge';
 
+// Zone skip rules for fast navigation
+const ZONE_SKIP_RULES = {
+  2: { // Player controls zone
+    ArrowDown: { targetZone: 3, targetRow: 0 },
+  },
+  3: { // Episode sidebar zone
+    ArrowUp: { targetZone: 2, restoreLastFocus: true },
+  },
+};
+
 const FocusContext = createContext(null);
 
 // Grid of focusable refs: grid[zone][row][col] = ref
