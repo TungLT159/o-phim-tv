@@ -1,0 +1,105 @@
+@import '../../scss/tv-variables.scss';
+
+.episode-list-item {
+  display: flex;
+  gap: 20px;
+  padding: 16px;
+  background: $tv-surface;
+  border-radius: $tv-card-border-radius;
+  border: 2px solid transparent;
+  min-height: $tv-episode-item-height;
+  align-items: center;
+  cursor: pointer;
+  transition: 
+    transform $tv-focus-transition,
+    border $tv-focus-transition,
+    box-shadow $tv-focus-transition,
+    background $tv-focus-transition;
+
+  &--focused {
+    border: $tv-focus-border;
+    transform: scale(1.05);
+    background: lighten($tv-surface, 5%);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    z-index: 1;
+  }
+
+  &--current {
+    border-left: 6px solid $tv-accent;
+    padding-left: 10px;
+  }
+
+  &__thumbnail {
+    width: $tv-episode-thumbnail-width;
+    height: $tv-episode-thumbnail-height;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: darken($tv-surface, 3%);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  &__thumbnail-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: darken($tv-surface, 3%);
+
+    i {
+      font-size: 32px;
+      color: $tv-text-tertiary;
+    }
+  }
+
+  &__info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: $tv-gap-sm;
+    min-width: 0; // Allow text truncation
+  }
+
+  &__header {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  &__number {
+    font-size: 20px;
+    font-weight: $tv-weight-semibold;
+    color: $tv-text-secondary;
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-size: $tv-text-card;
+    font-weight: $tv-weight-medium;
+    color: $tv-text-primary;
+    @include tv-text-ellipsis(1);
+  }
+
+  &__description {
+    font-size: $tv-text-small;
+    line-height: $tv-line-height-normal;
+    color: $tv-text-secondary;
+    @include tv-text-ellipsis(2);
+    margin: 0;
+  }
+
+  &__duration {
+    align-self: flex-start;
+    padding-top: $tv-gap-sm;
+    font-size: $tv-text-small;
+    color: $tv-text-secondary;
+    flex-shrink: 0;
+  }
+}
