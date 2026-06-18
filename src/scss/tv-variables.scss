@@ -78,7 +78,7 @@ $tv-sidebar-width: 420px;
 // Cards
 $tv-card-width: 220px;
 $tv-card-height: 330px;
-$tv-card-ratio: calc(3 / 2);        // Portrait 2:3
+$tv-card-ratio: calc(2 / 3);        // Portrait 2:3
 $tv-card-border-radius: 8px;
 
 // Controls (Video Player)
@@ -97,7 +97,7 @@ $tv-episode-thumbnail-height: 100px;
 
 // Apply to all focusable elements for consistent Netflix-style focus
 @mixin tv-focusable {
-  border: 2px solid transparent;
+  border: $tv-focus-border-width solid transparent;
   transition: 
     transform $tv-focus-transition,
     border $tv-focus-transition,
