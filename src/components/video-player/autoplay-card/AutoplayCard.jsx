@@ -14,12 +14,12 @@ const AutoplayCard = ({
   const { ref: playRef, focused: playFocused } = useFocusable(4, 0, 0);
   const { ref: cancelRef, focused: cancelFocused } = useFocusable(4, 0, 1);
 
-  if (!isVisible || !nextEpisode) return null;
+  if (!nextEpisode) return null;
 
   const nextEpisodeLabel = formatEpisodeDisplayName(nextEpisode.name);
 
   return (
-    <div className="autoplay-card" role="status">
+    <div className={`autoplay-card ${isVisible ? 'autoplay-card--visible' : ''}`} role="status">
       <div className="autoplay-card__content">
         <span className="autoplay-card__label">Tiếp theo</span>
         <strong className="autoplay-card__title">{nextEpisodeLabel}</strong>
