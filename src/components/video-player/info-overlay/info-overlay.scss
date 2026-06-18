@@ -1,0 +1,44 @@
+@import '../../../scss/tv-variables.scss';
+
+.info-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  padding: $tv-padding-x;
+  background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, transparent 100%);
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+
+  // Parent component will add class to show
+  &--visible {
+    opacity: 1;
+  }
+
+  &__title {
+    font-size: 36px;
+    font-weight: $tv-weight-bold;
+    color: $tv-text-primary;
+    margin: 0;
+    margin-bottom: 12px;
+    @include tv-text-ellipsis(2);
+  }
+
+  &__episode {
+    font-size: 20px;
+    font-weight: $tv-weight-medium;
+    color: $tv-text-secondary;
+    margin: 0;
+    margin-bottom: 16px;
+  }
+
+  &__description {
+    font-size: $tv-text-body;
+    line-height: $tv-line-height-relaxed;
+    color: $tv-text-secondary;
+    margin: 0;
+    @include tv-text-ellipsis(4);
+  }
+}
