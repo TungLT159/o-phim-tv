@@ -1,32 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
 import { formatEpisodeDisplayName } from "../../utils/episodeDisplayName";
 import {
   calculatePlaybackFps,
   getPlaybackQualitySnapshot,
 } from "../../utils/videoPlaybackMetrics";
+import {
+  getEpisodeLink,
+} from "../../utils/episodeLinkManager";
 import CustomVideoPlayerChrome from "./CustomVideoPlayerChrome";
+import EpisodeSidebar from "./episode-sidebar/EpisodeSidebar";
+import InfoOverlay from "./info-overlay/InfoOverlay";
+import AutoplayCard from "./autoplay-card/AutoplayCard";
 import "./custom-video-player.scss";
 
 export const shouldUseNativeControls = () => {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-
-  const userAgent = window.navigator?.userAgent || "";
-  const isKnownTvBrowser =
-    /android tv|smart-tv|smarttv|googletv|tizen|webos|appletv|apple tv|roku|aft|fire tv|crkey/i.test(
-      userAgent,
-    );
-  const maxTouchPoints = window.navigator?.maxTouchPoints || 0;
-  const viewportWidth = window.innerWidth || 0;
-  const viewportHeight = window.innerHeight || 0;
-  const isLargeNonTouchScreen =
-    maxTouchPoints === 0 && Math.max(viewportWidth, viewportHeight) >= 1280;
-
-  if (isKnownTvBrowser || isLargeNonTouchScreen) return false;
-
-  return (
-    window.matchMedia("(pointer: coarse)").matches ||
-    window.matchMedia("(hover: none)").matches
-  );
+  return false;
 };
 
 const shouldShowFpsDebug = () => {
@@ -39,10 +28,39 @@ const formatFpsMetric = (value) => {
   return value.toFixed(1);
 };
 
+const PLAYER_FOCUSABLE_SELECTOR = [
+  ".custom-video-player__close-btn",
+  ".custom-video-player__center-play",
+  ".custom-video-player__chrome button:not(:disabled)",
+  ".custom-video-player__autoplay-card button:not(:disabled)",
+].join(", ");
+
+const DIALOG_FOCUSABLE_SELECTOR = ".custom-video-player__episode-dialog button:not(:disabled)";
+
+const getFocusableElements = (root, dialogOpen) => {
+  if (!root) return [];
+  const selector = dialogOpen ? DIALOG_FOCUSABLE_SELECTOR : PLAYER_FOCUSABLE_SELECTOR;
+  return Array.from(root.querySelectorAll(selector)).filter((element) => {
+    if (element.classList.contains("custom-video-player__hit-area")) return false;
+    return !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true";
+  });
+};
+
+const focusByOffset = (root, dialogOpen, offset) => {
+  const focusables = getFocusableElements(root, dialogOpen);
+  if (!focusables.length) return;
+
+  const activeIndex = focusables.indexOf(document.activeElement);
+  const nextIndex = activeIndex >= 0
+    ? Math.min(Math.max(activeIndex + offset, 0), focusables.length - 1)
+    : 0;
+  focusables[nextIndex]?.focus();
+};
+
 const CustomVideoPlayer = ({
-  videoRef,
+  videoRef: externalVideoRef,
   title,
-  episodeName,
+  episodeName: externalEpisodeName,
   episodeGroupTitle,
   canGoPrevEpisode = false,
   canGoNextEpisode = false,
@@ -50,10 +68,23 @@ const CustomVideoPlayer = ({
   showAutoPlayNotice = false,
   autoPlayCountdown = null,
   autoPlayDuration = 10,
+  autoPlayEnabled = false,
   onPrevEpisode,
   onNextEpisode,
   onCancelAutoPlay,
+  onToggleAutoPlay,
+  episodes = [],
+  currentEpisode,
+  onSelectEpisode,
+  movieId,
+  episode,
+  autoFullscreen = false,
+  onClose,
 }) => {
+  const internalVideoRef = useRef(null);
+  const videoRef = externalVideoRef || internalVideoRef;
+  const selfContained = Boolean(movieId && episode);
+  const episodeName = externalEpisodeName || episode?.name;
   const playerRef = useRef(null);
   const hideControlsTimerRef = useRef(null);
   const ignoreNextClickRef = useRef(false);
@@ -76,6 +107,7 @@ const CustomVideoPlayer = ({
   const [useNativeControls] = useState(shouldUseNativeControls);
   const [showFpsDebug] = useState(shouldShowFpsDebug);
   const [fpsDebugMetrics, setFpsDebugMetrics] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
@@ -189,14 +221,6 @@ const CustomVideoPlayer = ({
     [getVideo],
   );
 
-  const toggleMute = useCallback(() => {
-    const video = getVideo();
-    if (!video) return;
-
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
-  }, [getVideo]);
-
   const handleVolumeChange = useCallback(
     (event) => {
       const video = getVideo();
@@ -211,22 +235,12 @@ const CustomVideoPlayer = ({
     [getVideo],
   );
 
-  const toggleFullscreen = useCallback(() => {
-    const player = playerRef.current;
+  const toggleMute = useCallback(() => {
     const video = getVideo();
-    if (!player) return;
+    if (!video) return;
 
-    if (!document.fullscreenElement) {
-      if (player.requestFullscreen) {
-        player.requestFullscreen();
-      } else if (video?.webkitEnterFullscreen) {
-        video.webkitEnterFullscreen();
-      } else {
-        video?.requestFullscreen?.();
-      }
-    } else {
-      document.exitFullscreen?.();
-    }
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
   }, [getVideo]);
 
   const togglePictureInPicture = useCallback(() => {
@@ -251,6 +265,28 @@ const CustomVideoPlayer = ({
     },
     [togglePlay],
   );
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    revealControls();
+  }, [revealControls]);
+
+  const handleEpisodeSelect = useCallback(
+    (selectedEpisode) => {
+      onSelectEpisode?.(selectedEpisode);
+      closeSidebar();
+    },
+    [closeSidebar, onSelectEpisode],
+  );
+
+  const focusFirstPlayerControl = useCallback(() => {
+    const root = playerRef.current;
+    const focusables = getFocusableElements(root, false);
+    const preferred = focusables.find((element) =>
+      element.classList.contains("custom-video-player__control-btn--play"),
+    );
+    (preferred || focusables[0])?.focus();
+  }, []);
 
   useEffect(() => {
     const video = getVideo();
@@ -352,6 +388,13 @@ const CustomVideoPlayer = ({
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(focusFirstPlayerControl, 0);
+    return () => clearTimeout(timer);
+  }, [focusFirstPlayerControl]);
+
+
+
+  useEffect(() => {
     const handleKeyDown = (event) => {
       const tagName = event.target?.tagName;
       if (
@@ -363,28 +406,57 @@ const CustomVideoPlayer = ({
       }
 
       if (
-        [" ", "ArrowLeft", "ArrowRight", "m", "M", "f", "F"].includes(event.key)
+        [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "m", "M"].includes(event.key)
       ) {
         event.preventDefault();
       }
 
       switch (event.key) {
+        case "Enter": {
+          const focused = document.activeElement;
+          if (playerRef.current?.contains(focused) && focused !== document.body) {
+            focused.click?.();
+          } else {
+            focusFirstPlayerControl();
+          }
+          break;
+        }
         case " ":
-          togglePlay();
+          if (playerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) {
+            document.activeElement.click?.();
+          } else {
+            togglePlay();
+          }
           break;
         case "ArrowLeft":
-          seekBy(-10);
+        case "ArrowUp":
+          revealControls();
+          focusByOffset(playerRef.current, false, -1);
           break;
         case "ArrowRight":
-          seekBy(10);
+        case "ArrowDown":
+          revealControls();
+          focusByOffset(playerRef.current, false, 1);
           break;
         case "m":
         case "M":
           toggleMute();
           break;
-        case "f":
-        case "F":
-          toggleFullscreen();
+        case "Backspace":
+          event.preventDefault();
+          if (sidebarOpen) {
+            closeSidebar();
+          } else {
+            onClose?.();
+          }
+          break;
+        case "Escape":
+          event.preventDefault();
+          if (sidebarOpen) {
+            closeSidebar();
+          } else {
+            onClose?.();
+          }
           break;
         default:
           break;
@@ -393,7 +465,7 @@ const CustomVideoPlayer = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [seekBy, toggleFullscreen, toggleMute, togglePlay]);
+  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, toggleMute, togglePlay]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -426,6 +498,208 @@ const CustomVideoPlayer = ({
       playbackQualitySnapshotRef.current = null;
     };
   }, [getVideo, showFpsDebug]);
+
+  const [selfPlaybackError, setSelfPlaybackError] = useState(null);
+
+  useEffect(() => {
+    if (!selfContained) return;
+
+    const video = videoRef.current;
+    const epName = episode?.slug || episode?.name;
+    console.log('[CustomVideoPlayer] self-contained effect running', { selfContained, hasVideo: !!video, epName, movieId });
+    
+    if (!video || !epName) return;
+
+    video.play().catch(() => {});
+
+    let cancelled = false;
+    let hls = null;
+    let canPlayHandler = null;
+
+    const playAndPrefetch = () => {
+      if (cancelled) return;
+      console.log('[CustomVideoPlayer] playing video');
+      video.play().catch((e) => console.error('[CustomVideoPlayer] play error:', e));
+    };
+
+    const loadSource = async () => {
+      setSelfPlaybackError(null);
+      setIsLoading(true);
+      setHasError(false);
+      
+      try {
+        let sourceUrl = episode?.link_m3u8;
+        let embedUrl = episode?.link_embed;
+
+        if (!sourceUrl && !embedUrl) {
+          console.log('[CustomVideoPlayer] no direct link_m3u8 on episode, fetching via API...');
+          const link = await getEpisodeLink(
+            movieId,
+            epName,
+            episode.episodeGroupIndex,
+          );
+          console.log('[CustomVideoPlayer] got episode link', { hasPlaylist: !!link?.playlistUrl, hasM3u8: !!link?.link_m3u8, hasEmbed: !!link?.link_embed });
+          if (cancelled) return;
+          sourceUrl = link?.playlistUrl || link?.link_m3u8;
+          embedUrl = link?.link_embed;
+        } else {
+          console.log('[CustomVideoPlayer] using direct link_m3u8 from episode', sourceUrl?.substring(0, 80));
+        }
+
+        if (!sourceUrl && !embedUrl) {
+          setSelfPlaybackError("Không tìm thấy link phát video.");
+          setIsLoading(false);
+          return;
+        }
+
+        // Log video element state
+        console.log('[CustomVideoPlayer] Video element state', {
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          readyState: video.readyState,
+          networkState: video.networkState
+        });
+
+        if (sourceUrl && Hls.isSupported()) {
+          console.log('[CustomVideoPlayer] setting up HLS.js', sourceUrl.substring(0, 80));
+          video.removeAttribute("src");
+          video.load();
+
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            maxBufferLength: 60,
+            maxMaxBufferLength: 120,
+            backBufferLength: 30,
+            // Thêm config để xử lý video tốt hơn
+            debug: false,
+            startPosition: -1,
+            autoStartLoad: true,
+            capLevelToPlayerSize: true,
+          });
+          
+          let manifestTimeout = setTimeout(() => {
+            console.error('[CustomVideoPlayer] HLS manifest timeout, trying direct src');
+            if (hls) { hls.destroy(); hls = null; }
+            video.src = sourceUrl;
+            video.load();
+            video.play().catch((e) => console.error('[CustomVideoPlayer] direct play error:', e));
+          }, 15000);
+          
+          hls.loadSource(sourceUrl);
+          hls.attachMedia(video);
+          
+          hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+            clearTimeout(manifestTimeout);
+            console.log('[CustomVideoPlayer] HLS manifest parsed', {
+              levels: data.levels?.length,
+              firstLevel: data.levels?.[0],
+              audioTracks: data.audioTracks?.length,
+              hasVideo: data.levels?.some(l => l.videoCodec),
+              hasAudio: data.levels?.some(l => l.audioCodec)
+            });
+            playAndPrefetch();
+          });
+          
+          hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
+            console.log('[CustomVideoPlayer] Level loaded', {
+              level: data.level,
+              details: {
+                totalduration: data.details.totalduration,
+                live: data.details.live,
+                targetduration: data.details.targetduration
+              }
+            });
+          });
+          
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('[CustomVideoPlayer] HLS error', {
+              type: data.type,
+              details: data.details,
+              fatal: data.fatal,
+              url: data.url,
+              reason: data.reason,
+              level: data.level
+            });
+            
+            if (data.fatal) {
+              clearTimeout(manifestTimeout);
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  console.error('[CustomVideoPlayer] Fatal network error, trying to recover');
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  console.error('[CustomVideoPlayer] Fatal media error, trying to recover');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  if (!cancelled) {
+                    setSelfPlaybackError("Không thể phát video. Lỗi: " + (data.details || "Unknown"));
+                  }
+                  break;
+              }
+            }
+          });
+          return;
+        }
+
+        const nativeHls =
+          sourceUrl && video.canPlayType("application/vnd.apple.mpegurl");
+        const playbackUrl = nativeHls ? sourceUrl : embedUrl;
+
+        console.log('[CustomVideoPlayer] native HLS fallback', { nativeHls, playbackUrl: playbackUrl?.substring(0, 80) });
+
+        if (!playbackUrl) {
+          setSelfPlaybackError("Không tìm thấy link phát video.");
+          setIsLoading(false);
+          return;
+        }
+
+        video.src = playbackUrl;
+        video.load();
+        canPlayHandler = playAndPrefetch;
+        video.addEventListener("canplay", canPlayHandler, { once: true });
+      } catch (err) {
+        console.error('[CustomVideoPlayer] load error:', err);
+        if (!cancelled) {
+          setSelfPlaybackError("Không thể phát video. Lỗi: " + (err.message || "Unknown"));
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadSource();
+
+    return () => {
+      cancelled = true;
+      if (canPlayHandler) {
+        video.removeEventListener("canplay", canPlayHandler);
+      }
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [selfContained, movieId, episode, videoRef]);
+
+  useEffect(() => {
+    if (!autoFullscreen) return;
+
+    const timer = setTimeout(() => {
+      const player = playerRef.current;
+      if (!player) return;
+      if (document.fullscreenElement) return;
+      if (player.requestFullscreen) {
+        player.requestFullscreen().catch((err) => {
+          console.log('[CustomVideoPlayer] Fullscreen not supported or denied:', err);
+        });
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [autoFullscreen]);
+
+  const effectiveError = selfPlaybackError || hasError;
 
   const fpsDebugOverlay = showFpsDebug ? (
     <div className="custom-video-player__fps-debug" aria-live="polite">
@@ -462,6 +736,16 @@ const CustomVideoPlayer = ({
         >
           Trình duyệt của bạn không hỗ trợ video HTML5.
         </video>
+        {onClose && (
+          <button
+            className="custom-video-player__close-btn"
+            type="button"
+            onClick={onClose}
+            aria-label="Quay lại"
+          >
+            <i className="bx bx-arrow-back" /> Quay lại
+          </button>
+        )}
         {fpsDebugOverlay}
       </div>
     );
@@ -472,11 +756,10 @@ const CustomVideoPlayer = ({
         .filter(Boolean)
         .join(" - ")
     : "";
-  const nextEpisodeLabel = nextEpisodeName
-    ? formatEpisodeDisplayName(nextEpisodeName)
-    : "Tập tiếp theo";
   const shouldShowCustomAutoPlayNotice =
     showAutoPlayNotice && autoPlayCountdown !== null && onNextEpisode;
+  const effectiveCurrentEpisode = currentEpisode || episode;
+  const hasEpisodeDialog = episodes.length > 0 && onSelectEpisode;
 
   return (
     <div
@@ -488,9 +771,45 @@ const CustomVideoPlayer = ({
       onMouseLeave={() => isPlaying && setShowControls(false)}
       onTouchStart={handleSurfaceTap}
     >
-      <video ref={videoRef} autoPlay playsInline controlsList="nodownload">
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        webkit-playsinline="true"
+        controlsList="nodownload"
+        preload="auto"
+        crossOrigin="anonymous"
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      >
         Trình duyệt của bạn không hỗ trợ video HTML5.
       </video>
+
+      {onClose && (
+        <button
+          className="custom-video-player__close-btn"
+          data-tv-focusable="true"
+          type="button"
+          onClick={onClose}
+          aria-label="Quay lại"
+        >
+          <i className="bx bx-arrow-back" /> Quay lại
+        </button>
+      )}
+
+      <EpisodeSidebar
+        episodes={episodes}
+        currentEpisode={effectiveCurrentEpisode}
+        isOpen={sidebarOpen}
+        onClose={closeSidebar}
+        onSelectEpisode={handleEpisodeSelect}
+      />
+
+      <InfoOverlay
+        title={title}
+        episodeName={episodeLabel}
+        description=""
+        isVisible={!isPlaying && !effectiveError}
+      />
 
       <button
         className="custom-video-player__hit-area"
@@ -507,24 +826,25 @@ const CustomVideoPlayer = ({
         </div>
       )}
 
-      {isLoading && !hasError && (
+      {isLoading && !effectiveError && (
         <div className="custom-video-player__state custom-video-player__state--loading">
           <span className="custom-video-player__spinner" />
           <span>Đang tải video…</span>
         </div>
       )}
 
-      {hasError && (
+      {effectiveError && (
         <div className="custom-video-player__state custom-video-player__state--error">
           <i className="bx bx-error-circle" />
           <strong>Không thể phát video</strong>
-          <span>Vui lòng thử lại sau hoặc chọn tập khác.</span>
+          <span>{effectiveError}</span>
         </div>
       )}
 
-      {!isPlaying && !hasError && (
+      {!isPlaying && !effectiveError && (
         <button
           className="custom-video-player__center-play"
+          data-tv-focusable="true"
           type="button"
           onClick={handleCenterPlayClick}
           aria-label="Phát video"
@@ -534,32 +854,14 @@ const CustomVideoPlayer = ({
       )}
 
       {shouldShowCustomAutoPlayNotice && (
-        <div className="custom-video-player__autoplay-card" role="status">
-          <div className="custom-video-player__autoplay-copy">
-            <span>Tiếp theo</span>
-            <strong>{nextEpisodeLabel}</strong>
-            <small>Tập sẽ tự phát sau ít giây nữa</small>
-          </div>
-          <div className="custom-video-player__autoplay-actions">
-            <button
-              className="custom-video-player__autoplay-action custom-video-player__autoplay-action--play"
-              type="button"
-              onClick={onNextEpisode}
-              aria-label="Phát tập tiếp theo ngay"
-              style={{ "--autoplay-duration": `${autoPlayDuration}s` }}
-            >
-              <span>Phát ngay</span>
-            </button>
-            <button
-              className="custom-video-player__autoplay-action custom-video-player__autoplay-action--cancel"
-              type="button"
-              onClick={onCancelAutoPlay}
-              aria-label="Hủy tự động phát"
-            >
-              Hủy
-            </button>
-          </div>
-        </div>
+        <AutoplayCard
+          nextEpisode={{ name: nextEpisodeName }}
+          countdown={autoPlayCountdown}
+          autoPlayDuration={autoPlayDuration}
+          isVisible={shouldShowCustomAutoPlayNotice}
+          onPlayNow={onNextEpisode}
+          onCancel={onCancelAutoPlay}
+        />
       )}
 
       {fpsDebugOverlay}
@@ -582,6 +884,7 @@ const CustomVideoPlayer = ({
           isPictureInPicture,
         }}
         canUsePictureInPicture={canUsePictureInPicture}
+        episodes={episodes}
         onSeek={handleSeek}
         onTogglePlay={togglePlay}
         onSeekBackward={() => seekBy(-10)}
@@ -591,7 +894,9 @@ const CustomVideoPlayer = ({
         onToggleMute={toggleMute}
         onVolumeChange={handleVolumeChange}
         onTogglePictureInPicture={togglePictureInPicture}
-        onToggleFullscreen={toggleFullscreen}
+        onOpenEpisodeList={hasEpisodeDialog ? () => setSidebarOpen(true) : undefined}
+        autoPlayEnabled={autoPlayEnabled}
+        onToggleAutoPlay={onToggleAutoPlay}
       />
     </div>
   );

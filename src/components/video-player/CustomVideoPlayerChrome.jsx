@@ -57,7 +57,10 @@ const CustomVideoPlayerChrome = ({
   onVolumeChange,
   canUsePictureInPicture,
   onTogglePictureInPicture,
-  onToggleFullscreen,
+  episodes,
+  onOpenEpisodeList,
+  autoPlayEnabled,
+  onToggleAutoPlay,
 }) => {
   const {
     showControls,
@@ -66,7 +69,6 @@ const CustomVideoPlayerChrome = ({
     duration,
     volume,
     isMuted,
-    isFullscreen,
     isPictureInPicture,
   } = playbackState;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -76,6 +78,8 @@ const CustomVideoPlayerChrome = ({
   const canGoPrevEpisode = Boolean(episodeNavigation?.canGoPrevEpisode);
   const canGoNextEpisode = Boolean(episodeNavigation?.canGoNextEpisode);
   const hasEpisodeNavigation = Boolean(onPrevEpisode || onNextEpisode);
+  const hasEpisodeList = Boolean(episodes?.length && onOpenEpisodeList);
+  const hasAutoPlayToggle = typeof onToggleAutoPlay === "function";
 
   return (
     <div
@@ -106,6 +110,7 @@ const CustomVideoPlayerChrome = ({
       <div className="custom-video-player__controls custom-video-player__controls--primary">
         <button
           className="custom-video-player__control-btn custom-video-player__control-btn--play"
+          data-tv-focusable="true"
           type="button"
           onClick={onTogglePlay}
           aria-label={isPlaying ? "Tạm dừng" : "Phát"}
@@ -114,6 +119,7 @@ const CustomVideoPlayerChrome = ({
         </button>
         <button
           className="custom-video-player__control-btn custom-video-player__control-btn--rewind"
+          data-tv-focusable="true"
           type="button"
           onClick={onSeekBackward}
           aria-label="Tua lùi 10 giây"
@@ -123,6 +129,7 @@ const CustomVideoPlayerChrome = ({
         </button>
         <button
           className="custom-video-player__control-btn custom-video-player__control-btn--forward"
+          data-tv-focusable="true"
           type="button"
           onClick={onSeekForward}
           aria-label="Tua tới 10 giây"
@@ -133,6 +140,7 @@ const CustomVideoPlayerChrome = ({
         {hasEpisodeNavigation && (
           <button
             className="custom-video-player__control-btn custom-video-player__control-btn--episode"
+            data-tv-focusable="true"
             type="button"
             onClick={onPrevEpisode}
             disabled={!canGoPrevEpisode}
@@ -145,6 +153,7 @@ const CustomVideoPlayerChrome = ({
         {hasEpisodeNavigation && (
           <button
             className="custom-video-player__control-btn custom-video-player__control-btn--episode"
+            data-tv-focusable="true"
             type="button"
             onClick={onNextEpisode}
             disabled={!canGoNextEpisode}
@@ -154,10 +163,36 @@ const CustomVideoPlayerChrome = ({
             <i className="bx bx-skip-next" />
           </button>
         )}
-        <div className="custom-video-player__volume">
+        {hasEpisodeList && (
           <button
-            className="custom-video-player__control-btn custom-video-player__control-btn--mute"
+            className="custom-video-player__control-btn custom-video-player__control-btn--episode-list"
+            data-tv-focusable="true"
             type="button"
+            onClick={onOpenEpisodeList}
+            aria-label="Danh sách tập"
+          >
+            <i className="bx bx-list-ul" />
+            <span>Tập phim</span>
+          </button>
+        )}
+        {hasAutoPlayToggle && (
+          <button
+            className={`custom-video-player__control-btn custom-video-player__control-btn--autoplay ${autoPlayEnabled ? "is-enabled" : ""}`}
+            data-tv-focusable="true"
+            type="button"
+            onClick={onToggleAutoPlay}
+            aria-label={autoPlayEnabled ? "Tắt tự động phát" : "Bật tự động phát"}
+            aria-pressed={Boolean(autoPlayEnabled)}
+          >
+            <i className={`bx ${autoPlayEnabled ? "bx-toggle-right" : "bx-toggle-left"}`} />
+            <span>Tự phát</span>
+          </button>
+        )}
+        <div className="custom-video-player__volume">
+            <button
+              className="custom-video-player__control-btn custom-video-player__control-btn--mute"
+              data-tv-focusable="true"
+              type="button"
             onClick={onToggleMute}
             aria-label={isMuted ? "Bật âm" : "Tắt âm"}
           >
@@ -177,6 +212,7 @@ const CustomVideoPlayerChrome = ({
         {canUsePictureInPicture && (
           <button
             className="custom-video-player__control-btn custom-video-player__control-btn--picture-in-picture"
+            data-tv-focusable="true"
             type="button"
             onClick={onTogglePictureInPicture}
             aria-label={
@@ -186,16 +222,6 @@ const CustomVideoPlayerChrome = ({
             <PictureInPictureIcon />
           </button>
         )}
-        <button
-          className="custom-video-player__control-btn custom-video-player__control-btn--fullscreen"
-          type="button"
-          onClick={onToggleFullscreen}
-          aria-label={isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
-        >
-          <i
-            className={`bx ${isFullscreen ? "bx-exit-fullscreen" : "bx-fullscreen"}`}
-          />
-        </button>
       </div>
     </div>
   );
