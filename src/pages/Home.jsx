@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { OutlineButton } from "../components/button/Button";
 import HeroSlide from "../components/hero-slide/HeroSlide";
 import MovieList from "../components/movie-list/MovieList";
@@ -11,7 +11,7 @@ import { category, movieType } from "../api/tmdbApi";
 import tmdbApi from "../api/tmdbApi";
 import { Helmet } from "react-helmet";
 import { isTauri } from "../tauri-bridge";
-import { useFocusable, useFocus } from "../context/FocusContext";
+import { useFocusable } from "../context/FocusContext";
 
 const TV_ROWS = [
   { title: "Phim mới cập nhật", type: movieType.phimMoi },
@@ -44,41 +44,28 @@ const GENRE_ROWS = [
   { title: "Võ Thuật", type: "vo-thuat" },
 ];
 
-function BackToTop({ row }) {
-  const { ref, focused } = useFocusable(1, row, 0);
-  const scroll = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setTimeout(() => {
-      const hero = document.querySelector('.tv-hero');
-      hero?.focus();
-    }, 400);
-  };
-
-  return (
-    <div
-      ref={ref}
-      className={`back-to-top ${focused ? 'back-to-top--focused' : ''}`}
-      onClick={scroll}
-      role="button"
-      tabIndex={-1}
-    >
-      <i className="bx bx-chevrons-up" />
-      <span>Lên đầu trang</span>
-    </div>
-  );
-}
-
 function TvHome() {
   const [heroMovies, setHeroMovies] = useState([]);
   const [rows, setRows] = useState({});
 
   useEffect(() => {
-    const allTypes = [...TV_ROWS.map(r => r.type), ...COUNTRY_ROWS.map(r => r.type), ...GENRE_ROWS.map(r => r.type)];
-    Promise.all(allTypes.map(t => tmdbApi.getMoviesList(t, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } }))))
+    const tvPromises = TV_ROWS.map(r =>
+      tmdbApi.getMoviesList(r.type, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } })),
+    );
+    const countryPromises = COUNTRY_ROWS.map(r =>
+      tmdbApi.getListByCountry(r.type, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } })),
+    );
+    const genrePromises = GENRE_ROWS.map(r =>
+      tmdbApi.getListByType(r.type, { page: 1, limit: 15 }).catch(() => ({ data: { items: [] } })),
+    );
+
+    Promise.all([...tvPromises, ...countryPromises, ...genrePromises])
       .then(results => {
         const map = {};
         const all = results[0].data?.items || [];
+
         setHeroMovies(all.slice(0, 6));
+
         [...TV_ROWS, ...COUNTRY_ROWS, ...GENRE_ROWS].forEach((r, i) => {
           map[r.type] = results[i].data?.items || [];
         });
@@ -95,6 +82,8 @@ function TvHome() {
 
       <TvHero items={heroMovies} />
 
+      <ContinueWatchingList />
+
       {TV_ROWS.map((row, idx) => (
         <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={idx + 1} />
       ))}
@@ -104,8 +93,6 @@ function TvHome() {
       {GENRE_ROWS.map((row, idx) => (
         <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={TV_ROWS.length + COUNTRY_ROWS.length + idx + 1} />
       ))}
-
-      <BackToTop row={TV_ROWS.length + COUNTRY_ROWS.length + GENRE_ROWS.length + 1} />
     </div>
   );
 }
