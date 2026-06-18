@@ -28,12 +28,6 @@ function reducer(state, action) {
       grid[zone][row][col] = ref;
       const maxRows = { ...state.maxRows };
       maxRows[zone] = Math.max(maxRows[zone] || 0, row);
-      if (!grid[state.zone]?.[state.row]?.[state.col]) {
-        const first = findFirstFocusable(grid[state.zone] || grid[zone]);
-        if (first) {
-          return { ...state, grid, maxRows, zone: state.zone in grid ? state.zone : zone, row: first.row, col: first.col };
-        }
-      }
       return { ...state, grid, maxRows };
     }
     case 'UNREGISTER': {
@@ -174,7 +168,11 @@ function reducer(state, action) {
       };
     }
     case 'CLEAR_TRAP': {
-      const restored = state.savedFocus || { zone: state.zone, row: state.row, col: state.col };
+      const restored = state.savedFocus;
+      if (!restored) {
+        console.warn('CLEAR_TRAP called without savedFocus');
+        return state; // No-op if no saved focus
+      }
       return {
         ...state,
         activeTrap: null,
@@ -196,16 +194,6 @@ function findNearestRow(zoneGrid, targetRow, maxRow) {
   return rows.reduce((prev, curr) =>
     Math.abs(curr - targetRow) < Math.abs(prev - targetRow) ? curr : prev
   );
-}
-
-function findFirstFocusable(zoneGrid) {
-  if (!zoneGrid) return null;
-  const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
-  for (const row of rows) {
-    const cols = Object.keys(zoneGrid[row] || {}).map(Number).sort((a,b) => a-b);
-    if (cols.length) return { row, col: cols[0] };
-  }
-  return null;
 }
 
 function findNextRow(zoneGrid, currentRow) {
