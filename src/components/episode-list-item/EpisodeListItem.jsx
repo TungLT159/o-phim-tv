@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useFocusable } from '../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../utils/episodeDisplayName';
 import './episode-list-item.scss';
@@ -12,13 +12,11 @@ const EpisodeListItem = ({
   onClick,
 }) => {
   const { ref, focused } = useFocusable(zone, row, col);
-  const [thumbnail, setThumbnail] = useState(null);
 
   // TODO: TMDB episode thumbnail fetching will be added in Phase 3
   // For now, always use placeholder
 
   const episodeNumber = formatEpisodeDisplayName(episode.name);
-  const episodeTitle = episode.name;
   const episodeDescription = episode.description || '';
   const duration = episode.duration || '';
 
@@ -55,19 +53,14 @@ const EpisodeListItem = ({
       aria-current={isCurrent ? 'true' : undefined}
     >
       <div className="episode-list-item__thumbnail">
-        {thumbnail ? (
-          <img src={thumbnail} alt={episodeTitle} loading="lazy" />
-        ) : (
-          <div className="episode-list-item__thumbnail-placeholder">
-            <i className="bx bx-play-circle" />
-          </div>
-        )}
+        <div className="episode-list-item__thumbnail-placeholder">
+          <i className="bx bx-play-circle" />
+        </div>
       </div>
 
       <div className="episode-list-item__info">
         <div className="episode-list-item__header">
           <span className="episode-list-item__number">{episodeNumber}</span>
-          <span className="episode-list-item__title">{episodeTitle}</span>
         </div>
         {episodeDescription && (
           <p className="episode-list-item__description">{episodeDescription}</p>
