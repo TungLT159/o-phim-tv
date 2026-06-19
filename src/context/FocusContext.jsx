@@ -425,7 +425,7 @@ export function FocusProvider({ children }) {
 
   // Focus element when state changes
   useEffect(() => {
-    focusCurrent('smooth');
+    focusCurrent('auto');
   }, [focusCurrent]);
 
   useEffect(() => {
@@ -446,20 +446,20 @@ export function FocusProvider({ children }) {
       if (arrowKeys.includes(e.key)) {
         e.preventDefault();
         
+        // Navigate first for immediate response
+        dispatch({ type: 'NAVIGATE', direction: e.key });
+        
         // Prevent key repeat from creating multiple intervals
-        if (e.repeat) {
-          dispatch({ type: 'NAVIGATE', direction: e.key });
-          return;
-        }
+        if (e.repeat) return;
         
         // Start acceleration if not already started
         if (!state.accelerationState?.activeKey) {
-          const startTime = Date.now(); // Capture in closure
+          const startTime = Date.now();
           dispatch({ type: 'START_ACCELERATION', key: e.key });
           
           // Start acceleration interval
           const intervalId = setInterval(() => {
-            const elapsed = Date.now() - startTime; // Use closure
+            const elapsed = Date.now() - startTime;
             let multiplier = 1;
             
             if (elapsed >= 2000) multiplier = 8;
@@ -467,13 +467,11 @@ export function FocusProvider({ children }) {
             else if (elapsed >= 500) multiplier = 2;
             
             dispatch({ type: 'UPDATE_ACCELERATION', multiplier, intervalId });
+            dispatch({ type: 'NAVIGATE', direction: e.key });
           }, 150);
           
           accelerationIntervalRef.current = intervalId;
-          dispatch({ type: 'UPDATE_ACCELERATION', multiplier: 1, intervalId });
         }
-        
-        dispatch({ type: 'NAVIGATE', direction: e.key });
       } else if (e.key === 'Enter' || e.key === ' ') {
         const focused = document.activeElement;
         if (focused && focused !== document.body) {
