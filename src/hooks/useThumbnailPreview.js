@@ -60,6 +60,10 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       if (seekPendingRef.current) {
         seekPendingRef.current.abort = true;
       }
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+        seekTimeoutRef.current = null;
+      }
 
       const pending = { abort: false };
       seekPendingRef.current = pending;
@@ -105,6 +109,18 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       const key = getCacheKey(time);
 
       if (cacheRef.current.has(key)) {
+        if (seekPendingRef.current) {
+          seekPendingRef.current.abort = true;
+          seekPendingRef.current = null;
+        }
+        if (seekTimeoutRef.current) {
+          clearTimeout(seekTimeoutRef.current);
+          seekTimeoutRef.current = null;
+        }
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
         const idx = accessOrderRef.current.indexOf(key);
         if (idx !== -1) {
           accessOrderRef.current.splice(idx, 1);
