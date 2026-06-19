@@ -8,7 +8,7 @@ import axiosClient from '../../api/axiosClient';
 import { useFocusable } from '../../context/FocusContext';
 import './tv-hero.scss';
 
-const HeroItem = ({ item }) => {
+const HeroItem = ({ item, focusRef, focused }) => {
   const navigate = useNavigate();
   const [movie, setMovie] = useState(null);
   const [backdropUrl, setBackdropUrl] = useState('');
@@ -71,8 +71,9 @@ const HeroItem = ({ item }) => {
 
         <div className="tv-hero__actions">
           <button
+            ref={focusRef}
             type="button"
-            className="tv-hero__play-btn"
+            className={`tv-hero__play-btn ${focused ? 'tv-hero__play-btn--focused' : ''}`}
             onClick={handlePlay}
             aria-label="Xem ngay"
           >
@@ -102,7 +103,7 @@ const TvHero = () => {
   if (!items.length) return null;
 
   return (
-    <div className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`} ref={ref} aria-label="Phim nổi bật">
+    <div className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`} aria-label="Phim nổi bật">
       <Swiper
         modules={[Autoplay]}
         grabCursor={false}
@@ -114,7 +115,7 @@ const TvHero = () => {
         {items.map((item) => (
           <SwiperSlide key={item._id || item.slug}>
             {({ isActive }) =>
-              isActive ? <HeroItem item={item} /> : null
+              isActive ? <HeroItem item={item} focusRef={ref} focused={focused} /> : null
             }
           </SwiperSlide>
         ))}

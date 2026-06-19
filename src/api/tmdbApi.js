@@ -1,5 +1,4 @@
 import axiosClient from "./axiosClient";
-import axios from "axios";
 
 export const category = {
   movie: "movie",
@@ -19,15 +18,6 @@ export const tvType = {
   top_rated: "top_rated",
   on_the_air: "on_the_air",
 };
-
-const hasDetailItem = (response) => Boolean(response?.data?.item);
-
-const hasEpisodeShape = (episode) => (
-  episode &&
-  typeof episode === "object" &&
-  !Array.isArray(episode) &&
-  ("link_m3u8" in episode || "link_embed" in episode || "playlistUrl" in episode)
-);
 
 const getEpisodeFromUpstream = async (id, episodeName, episodeGroupIndex) => {
   const response = await axiosClient.get("/v1/api/phim/" + id);
@@ -81,31 +71,17 @@ const tmdbApi = {
     return axiosClient.get(url, { params }); // ✅ bọc vào { params }
   },
   detail: (cate, id, params) => {
-    const url = "/api/phim/" + id;
-    return axios.get(url, params)
-      .then((response) => {
-        if (hasDetailItem(response.data)) return response.data;
-        return axiosClient.get("/v1/api/phim/" + id, params);
-      })
-      .catch(() => axiosClient.get("/v1/api/phim/" + id, params));
+    return axiosClient.get("/v1/api/phim/" + id, params);
   },
   episode: (id, episodeName, episodeGroupIndex) => {
-    const url = "/api/phim/" + id + "/episode";
-    return axios
-      .get(url, { params: { name: episodeName, group: episodeGroupIndex } })
-      .then((response) => {
-        if (hasEpisodeShape(response.data)) return response.data;
-        return getEpisodeFromUpstream(id, episodeName, episodeGroupIndex);
-      })
-      .catch(() => getEpisodeFromUpstream(id, episodeName, episodeGroupIndex));
+    return getEpisodeFromUpstream(id, episodeName, episodeGroupIndex);
   },
   credits: (cate, id) => {
     const url = `/v1/api/phim/${id}/peoples`;
     return axiosClient.get(url, { params: {} });
   },
   similar: (cate, id) => {
-    const url = category[cate] + "/" + id + "/similar";
-    return axiosClient.get(url, { params: {} });
+    return axiosClient.get("/v1/api/phim/" + id);
   },
 };
 

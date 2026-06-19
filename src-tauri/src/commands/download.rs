@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri_plugin_shell::ShellExt;
 
+#[allow(dead_code)]
 const DOWNLOAD_JOB_TTL_MS: u64 = 60 * 60 * 1000;
 
 pub struct DownloadManager {
@@ -14,6 +15,7 @@ pub struct DownloadManager {
 struct JobEntry {
     job: DownloadJob,
     output_path: Option<String>,
+    #[allow(dead_code)]
     created_at: u64,
 }
 

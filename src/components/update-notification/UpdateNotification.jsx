@@ -39,7 +39,7 @@ const UpdateNotification = () => {
       isMounted = false;
       unsubscribe?.();
     };
-  }, []);
+  }, [updates]);
 
   if (!updates || isDismissed) return null;
 

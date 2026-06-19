@@ -63,17 +63,23 @@ export const useEpisodePlayback = ({
       if (isCancelled) return;
 
       try {
-        const episodeLink = await getEpisodeLink(
-          movieId,
-          episodeName,
-          episode.episodeGroupIndex,
-        );
+        let sourceUrl = episode?.link_m3u8;
+        let embedUrl = episode?.link_embed;
 
-        if (isCancelled) return;
+        if (!sourceUrl && !embedUrl) {
+          const episodeLink = await getEpisodeLink(
+            movieId,
+            episodeName,
+            episode.episodeGroupIndex,
+          );
 
-        const sourceUrl = episodeLink?.playlistUrl || episodeLink?.link_m3u8;
+          if (isCancelled) return;
 
-        if (!sourceUrl && !episodeLink?.link_embed) {
+          sourceUrl = episodeLink?.playlistUrl || episodeLink?.link_m3u8;
+          embedUrl = episodeLink?.link_embed;
+        }
+
+        if (!sourceUrl && !embedUrl) {
           setPlaybackError(PLAYBACK_LINK_ERROR);
           return;
         }
@@ -87,6 +93,7 @@ export const useEpisodePlayback = ({
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, playAndPrefetchNext);
           hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('[useEpisodePlayback] HLS error', data?.type, data?.details, data?.fatal);
             if (!isCancelled && data?.fatal) {
               setPlaybackError(PLAYBACK_VIDEO_ERROR);
             }
@@ -96,7 +103,7 @@ export const useEpisodePlayback = ({
 
         const canPlayNativeHls =
           sourceUrl && video.canPlayType("application/vnd.apple.mpegurl");
-        const playbackUrl = canPlayNativeHls ? sourceUrl : episodeLink?.link_embed;
+        const playbackUrl = canPlayNativeHls ? sourceUrl : embedUrl;
 
         if (!playbackUrl) {
           setPlaybackError(PLAYBACK_LINK_ERROR);

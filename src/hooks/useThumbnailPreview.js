@@ -40,7 +40,6 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       const canvas = canvasRef?.current;
       if (!video || !canvas) return;
       if (video.readyState < 2) return;
-
       const key = getCacheKey(time);
 
       if (cacheRef.current.has(key)) {
@@ -105,7 +104,6 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
   const requestPreview = useCallback(
     (time, positionPercent) => {
       if (!duration || duration <= 0) return;
-
       const key = getCacheKey(time);
 
       if (cacheRef.current.has(key)) {

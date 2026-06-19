@@ -1,7 +1,7 @@
 {
   "productName": "O Phim",
   "version": "0.4.5",
-  "identifier": "com.ophim.desktop",
+  "identifier": "com.ophim.tv",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:3000",

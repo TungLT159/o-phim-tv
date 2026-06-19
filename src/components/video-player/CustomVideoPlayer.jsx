@@ -668,7 +668,7 @@ const CustomVideoPlayer = ({
           hls.attachMedia(video);
 
           if (sourceUrl) {
-            setThumbnailSource(sourceUrl, Hls.isSupported() && (sourceUrl || "").includes(".m3u8"));
+            setThumbnailSource(sourceUrl, true);
           }
 
           hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
@@ -773,7 +773,8 @@ const CustomVideoPlayer = ({
     const syncSource = () => {
       const src = video.src || video.currentSrc;
       if (src && src !== window.location.href) {
-        setThumbnailSource(src, (src || "").includes(".m3u8"));
+        const isHls = /\.m3u8($|\?)/.test(src) || video.canPlayType("application/vnd.apple.mpegurl");
+        setThumbnailSource(src, Boolean(isHls));
       }
     };
     syncSource();

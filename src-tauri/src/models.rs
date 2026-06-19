@@ -26,6 +26,7 @@ pub struct NavigationState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MovieResponse {
     pub status: bool,
     pub msg: Option<String>,
@@ -33,11 +34,13 @@ pub struct MovieResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MovieData {
     pub item: Option<MovieItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct MovieItem {
     pub _id: Option<String>,
     pub name: Option<String>,
@@ -49,12 +52,14 @@ pub struct MovieItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct EpisodeServer {
     pub server_name: Option<String>,
     pub server_data: Option<Vec<EpisodeItem>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct EpisodeItem {
     pub name: String,
     pub slug: String,
@@ -64,6 +69,7 @@ pub struct EpisodeItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct EpisodeResponse {
     pub name: String,
     pub slug: String,

@@ -3,6 +3,10 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import CustomVideoPlayer from "./CustomVideoPlayer";
 
+jest.mock("../../utils/episodeLinkManager", () => ({
+  getEpisodeLink: jest.fn(),
+}));
+
 const originalMatchMedia = window.matchMedia;
 const originalUserAgent = window.navigator.userAgent;
 const originalMaxTouchPoints = window.navigator.maxTouchPoints;
@@ -202,6 +206,29 @@ const renderPlayerWithEpisodeControls = (props = {}) => {
   return { ...view, playerProps };
 };
 
+const renderPlayerWithEpisodeDialog = (props = {}) => {
+  const videoRef = React.createRef();
+  const defaultProps = {
+    episodes: [
+      { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+      { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+    ],
+    currentEpisode: { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+    onSelectEpisode: jest.fn(),
+  };
+  const playerProps = { ...defaultProps, ...props };
+  const view = render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      episodeName="1"
+      {...playerProps}
+    />,
+  );
+
+  return { ...view, playerProps };
+};
+
 const mockPlayerBounds = (container) => {
   const player = container.querySelector(".custom-video-player");
   player.getBoundingClientRect = jest.fn(() => ({
@@ -260,13 +287,13 @@ test("disables unavailable custom episode navigation controls", () => {
   expect(screen.getByLabelText("Tập tiếp")).toBeDisabled();
 });
 
-test("does not render custom episode controls with native video controls", () => {
+test("keeps custom episode controls on coarse pointer devices", () => {
   mockCoarsePointer(true);
 
   renderPlayerWithEpisodeControls();
 
-  expect(screen.queryByLabelText("Tập trước")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Tập tiếp")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Tập trước")).toBeInTheDocument();
+  expect(screen.getByLabelText("Tập tiếp")).toBeInTheDocument();
 });
 
 test("renders custom auto-next overlay with progress fill", () => {
@@ -301,7 +328,56 @@ test("custom auto-next overlay plays now and cancels", () => {
   expect(playerProps.onCancelAutoPlay).toHaveBeenCalledTimes(1);
 });
 
-test("does not render custom auto-next overlay with native video controls", () => {
+test("remote Backspace closes the custom player", () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeControls({ onClose });
+
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+test("renders an autoplay toggle in custom controls", () => {
+  const onToggleAutoPlay = jest.fn();
+  renderPlayerWithEpisodeControls({
+    autoPlayEnabled: true,
+    onToggleAutoPlay,
+  });
+
+  const toggle = screen.getByRole("button", { name: "Tắt tự động phát" });
+  fireEvent.click(toggle);
+
+  expect(onToggleAutoPlay).toHaveBeenCalledTimes(1);
+});
+
+test("opens an episode dialog and selects an episode", () => {
+  const { playerProps } = renderPlayerWithEpisodeDialog();
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+  expect(screen.getByRole("dialog", { name: "Danh sách tập" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Tập 1" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Tập 2" }));
+
+  expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(
+    playerProps.episodes[1],
+  );
+});
+
+test("closes the episode dialog with Escape", () => {
+  renderPlayerWithEpisodeDialog();
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  fireEvent.keyDown(window, { key: "Escape" });
+
+  expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+});
+
+test("keeps custom auto-next overlay on coarse pointer devices", () => {
   mockCoarsePointer(true);
 
   renderPlayerWithEpisodeControls({
@@ -310,10 +386,8 @@ test("does not render custom auto-next overlay with native video controls", () =
     autoPlayDuration: 10,
   });
 
-  expect(screen.queryByText("Tiếp theo")).not.toBeInTheDocument();
-  expect(
-    screen.queryByLabelText("Phát tập tiếp theo ngay"),
-  ).not.toBeInTheDocument();
+  expect(screen.getByText("Tiếp theo")).toBeInTheDocument();
+  expect(screen.getByLabelText("Phát tập tiếp theo ngay")).toBeInTheDocument();
 });
 
 test("shows FPS debug overlay when debugFps query is enabled", () => {
@@ -372,19 +446,18 @@ test("shows unsupported FPS debug message when playback quality API is missing",
   expect(screen.getByText("Playback metrics unsupported")).toBeInTheDocument();
 });
 
-test("uses native video controls on coarse pointer devices", () => {
+test("uses custom video controls on coarse pointer devices", () => {
   mockCoarsePointer(true);
 
   const { container, video } = renderPlayer();
 
-  expect(video).toHaveAttribute("controls");
-  expect(video.controls).toBe(true);
+  expect(video).not.toHaveAttribute("controls");
   expect(
     container.querySelector(".custom-video-player__chrome"),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
   expect(
     container.querySelector(".custom-video-player__hit-area"),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
 });
 
 test("uses custom controls on TV browsers even when hover is unavailable", () => {
@@ -606,18 +679,40 @@ test("changes volume and mutes when volume reaches zero", () => {
   expect(video.muted).toBe(true);
 });
 
-test("supports keyboard seek and mute shortcuts", () => {
+test("remote arrows move focus across custom controls instead of seeking immediately", () => {
   const { video } = renderPlayer();
   video.currentTime = 30;
 
-  fireEvent.keyDown(window, { key: "ArrowRight" });
-  expect(video.currentTime).toBe(40);
+  screen.getAllByLabelText("Phát")[1].focus();
 
-  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(screen.getByLabelText("Tua lùi 10 giây")).toHaveFocus();
   expect(video.currentTime).toBe(30);
+
+  fireEvent.keyDown(window, { key: "Enter" });
+  expect(video.currentTime).toBe(20);
 
   fireEvent.keyDown(window, { key: "M" });
   expect(video.muted).toBe(true);
+});
+
+test("remote arrows move focus inside the episode dialog", () => {
+  const { playerProps } = renderPlayerWithEpisodeDialog({
+    episodes: [
+      { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+      { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+      { name: "3", slug: "tap-3", episodeKey: "0:tap-3" },
+    ],
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  expect(screen.getByRole("button", { name: "Tập 1" })).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "Enter" });
+  expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(playerProps.episodes[1]);
 });
 
 test("double tap on left half seeks backward 10 seconds", () => {

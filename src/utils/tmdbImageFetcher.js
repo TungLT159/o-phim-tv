@@ -24,10 +24,21 @@ export const fetchTMDBImages = async (tmdbInfo) => {
     };
   }
 
+  // Validate TMDB ID (phải là số hợp lệ)
+  const tmdbId = Number(tmdbInfo.id);
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+    console.warn(`[TMDB] Invalid ID: ${tmdbInfo.id}`);
+    return {
+      posterUrl: FALLBACK_POSTER,
+      backdropUrl: "",
+      overview: "",
+    };
+  }
+
   try {
     const type = tmdbInfo.type || "movie";
     const response = await axiosClient.get(
-      `https://api.themoviedb.org/3/${type}/${tmdbInfo.id}?api_key=${TMDB_API_KEY}&language=vi-VN`,
+      `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${TMDB_API_KEY}&language=vi-VN`,
     );
 
     return {
@@ -40,7 +51,12 @@ export const fetchTMDBImages = async (tmdbInfo) => {
       overview: response.overview || "",
     };
   } catch (error) {
-    console.error("Error fetching TMDB images:", error);
+    // Chỉ log chi tiết nếu không phải lỗi 404
+    if (error?.response?.status === 404) {
+      console.warn(`[TMDB] Movie/TV not found: ${tmdbInfo.type || 'movie'}/${tmdbId}`);
+    } else {
+      console.error("[TMDB] Error fetching images:", error?.message || error);
+    }
     return {
       posterUrl: FALLBACK_POSTER,
       backdropUrl: "",

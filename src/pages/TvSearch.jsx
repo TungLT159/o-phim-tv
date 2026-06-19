@@ -2,15 +2,22 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import tmdbApi from '../api/tmdbApi';
 import { useFocusable } from '../context/FocusContext';
+import { fetchTMDBImages } from '../utils/tmdbImageFetcher';
 import './tv-search.scss';
 
 const COLS = 5;
+const FALLBACK = '/poster-mau.png';
 
 function FocusCard({ item, row, col }) {
   const { ref, focused } = useFocusable(1, row, col);
-  const thumb = item.thumb_url
-    ? `https://img.ophim.live/uploads/movies/${item.thumb_url}`
-    : '/poster-mau.png';
+  const [poster, setPoster] = useState(FALLBACK);
+
+  useEffect(() => {
+    if (!item?.tmdb) return;
+    fetchTMDBImages(item.tmdb).then(({ posterUrl }) => {
+      if (posterUrl) setPoster(posterUrl);
+    });
+  }, [item]);
 
   return (
     <Link
@@ -19,7 +26,7 @@ function FocusCard({ item, row, col }) {
       className={`tv-search-card ${focused ? 'tv-search-card--focused' : ''}`}
     >
       <div className="tv-search-card__poster">
-        <img src={thumb} alt={item.name || ''} loading="lazy" />
+        <img src={poster} alt={item.name || ''} loading="lazy" />
         {item.quality && <span className="tv-search-card__quality">{item.quality}</span>}
         {item.episode_current && <span className="tv-search-card__ep">{item.episode_current}</span>}
       </div>
