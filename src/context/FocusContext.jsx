@@ -66,7 +66,45 @@ function reducer(state, action) {
     }
     case 'NAVIGATE': {
       const { direction } = action;
-      const { zone, row, col, grid, maxRows, rowMemory, activeTrap } = state;
+      const { zone, row, col, grid, maxRows, rowMemory, activeTrap, accelerationState, lastFocusPerZone } = state;
+      
+      // Extract step multiplier from acceleration state
+      const stepMultiplier = accelerationState?.stepMultiplier || 1;
+
+      // Check zone skip rules first (only if not trapped)
+      if (activeTrap === null) {
+        const skipRule = ZONE_SKIP_RULES[zone]?.[direction];
+        if (skipRule) {
+          const { targetZone, targetRow, restoreLastFocus } = skipRule;
+          
+          // Save current focus before skipping
+          const updatedLastFocus = {
+            ...lastFocusPerZone,
+            [zone]: { row, col },
+          };
+
+          let finalRow = targetRow;
+          let finalCol = 0;
+
+          // Restore last focus if rule specifies
+          if (restoreLastFocus && lastFocusPerZone[targetZone]) {
+            finalRow = lastFocusPerZone[targetZone].row;
+            finalCol = lastFocusPerZone[targetZone].col;
+          } else {
+            // Use default first column
+            const rowCols = Object.keys(grid[targetZone]?.[targetRow] || {}).map(Number).sort((a,b) => a-b);
+            finalCol = rowCols.length ? rowCols[0] : 0;
+          }
+
+          return {
+            ...state,
+            zone: targetZone,
+            row: finalRow,
+            col: finalCol,
+            lastFocusPerZone: updatedLastFocus,
+          };
+        }
+      }
 
       // If focus trapped, only allow navigation within trapped zone
       if (activeTrap !== null && zone === activeTrap) {
@@ -75,7 +113,7 @@ function reducer(state, action) {
         let newCol = col;
 
         if (direction === 'ArrowDown') {
-          newRow = findNextRow(trapGrid, row);
+          newRow = findNextRow(trapGrid, row, stepMultiplier);
           if (newRow !== row) {
             const rowCols = Object.keys(trapGrid?.[newRow] || {}).map(Number).sort((a,b) => a-b);
             if (rowCols.length) {
@@ -85,7 +123,7 @@ function reducer(state, action) {
             }
           }
         } else if (direction === 'ArrowUp') {
-          newRow = findPrevRow(trapGrid, row);
+          newRow = findPrevRow(trapGrid, row, stepMultiplier);
           if (newRow !== row) {
             const rowCols = Object.keys(trapGrid?.[newRow] || {}).map(Number).sort((a,b) => a-b);
             if (rowCols.length) {
@@ -107,7 +145,7 @@ function reducer(state, action) {
         return { ...state, row: newRow, col: newCol };
       }
 
-      // Normal navigation (no trap active) - existing logic
+      // Normal navigation (no trap active)
       let newZone = zone;
       let newRow = row;
       let newCol = col;
@@ -130,7 +168,7 @@ function reducer(state, action) {
           newCol = 0;
         }
       } else if (direction === 'ArrowDown') {
-        newRow = findNextRow(grid[zone], row);
+        newRow = findNextRow(grid[zone], row, stepMultiplier);
         if (newRow !== row) {
           const memKey = `${zone}-${newRow}`;
           if (rowMemory[memKey] !== undefined) {
@@ -145,7 +183,7 @@ function reducer(state, action) {
           }
         }
       } else if (direction === 'ArrowUp') {
-        newRow = findPrevRow(grid[zone], row);
+        newRow = findPrevRow(grid[zone], row, stepMultiplier);
         if (newRow !== row) {
           const memKey = `${zone}-${newRow}`;
           if (rowMemory[memKey] !== undefined) {
