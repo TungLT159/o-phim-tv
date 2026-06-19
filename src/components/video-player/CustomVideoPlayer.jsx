@@ -131,10 +131,10 @@ const CustomVideoPlayer = ({
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
   const calculateSeekStep = useCallback((elapsedMs) => {
-    if (elapsedMs < 500) return 10;
-    if (elapsedMs < 1500) return 30;
-    if (elapsedMs < 3000) return 60;
-    return 120;
+    if (elapsedMs < 500) return 15;
+    if (elapsedMs < 1500) return 60;
+    if (elapsedMs < 3000) return 150;
+    return 300;
   }, []);
 
   const updateSeekTooltip = useCallback((time) => {
@@ -261,8 +261,10 @@ const CustomVideoPlayer = ({
       const nextTime = Number(event.target.value);
       video.currentTime = nextTime;
       setCurrentTime(nextTime);
+      setShowControls(true);
+      revealControls();
     },
-    [getVideo],
+    [getVideo, revealControls],
   );
 
   const handleTimelineHover = useCallback(
@@ -470,7 +472,7 @@ const CustomVideoPlayer = ({
                 seekBy(-step);
               }, 200);
             }
-            seekBy(-10);
+            seekBy(-15);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, -1);
@@ -488,7 +490,7 @@ const CustomVideoPlayer = ({
                 seekBy(step);
               }, 200);
             }
-            seekBy(10);
+            seekBy(15);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, 1);
