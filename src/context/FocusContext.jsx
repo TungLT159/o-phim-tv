@@ -366,6 +366,7 @@ export function FocusProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const refMap = useRef(new Map());
   const prevStateRef = useRef({ zone: 1, row: 0, col: 0 });
+  const accelerationIntervalRef = useRef(null);
   const isTv = isTauri();
 
   const register = useCallback((zone, row, col, domRef) => {
@@ -445,24 +446,30 @@ export function FocusProvider({ children }) {
       if (arrowKeys.includes(e.key)) {
         e.preventDefault();
         
+        // Prevent key repeat from creating multiple intervals
+        if (e.repeat) {
+          dispatch({ type: 'NAVIGATE', direction: e.key });
+          return;
+        }
+        
         // Start acceleration if not already started
-        if (!state.accelerationState.activeKey) {
+        if (!state.accelerationState?.activeKey) {
+          const startTime = Date.now(); // Capture in closure
           dispatch({ type: 'START_ACCELERATION', key: e.key });
           
           // Start acceleration interval
           const intervalId = setInterval(() => {
-            const elapsed = Date.now() - state.accelerationState.startTime;
+            const elapsed = Date.now() - startTime; // Use closure
             let multiplier = 1;
             
             if (elapsed >= 2000) multiplier = 8;
             else if (elapsed >= 1000) multiplier = 4;
             else if (elapsed >= 500) multiplier = 2;
             
-            if (multiplier !== state.accelerationState.stepMultiplier) {
-              dispatch({ type: 'UPDATE_ACCELERATION', multiplier, intervalId });
-            }
+            dispatch({ type: 'UPDATE_ACCELERATION', multiplier, intervalId });
           }, 150);
           
+          accelerationIntervalRef.current = intervalId;
           dispatch({ type: 'UPDATE_ACCELERATION', multiplier: 1, intervalId });
         }
         
@@ -481,7 +488,11 @@ export function FocusProvider({ children }) {
 
     const handleKeyUp = (e) => {
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-      if (arrowKeys.includes(e.key) && state.accelerationState.activeKey === e.key) {
+      if (arrowKeys.includes(e.key)) {
+        if (accelerationIntervalRef.current) {
+          clearInterval(accelerationIntervalRef.current);
+          accelerationIntervalRef.current = null;
+        }
         dispatch({ type: 'STOP_ACCELERATION' });
       }
     };
@@ -492,6 +503,9 @@ export function FocusProvider({ children }) {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
+      if (accelerationIntervalRef.current) {
+        clearInterval(accelerationIntervalRef.current);
+      }
     };
   }, [isTv, state.accelerationState]);
 
