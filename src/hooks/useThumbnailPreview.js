@@ -16,6 +16,7 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
   const debounceRef = useRef(null);
   const hlsRef = useRef(null);
   const seekPendingRef = useRef(null);
+  const seekTimeoutRef = useRef(null);
   const [preview, setPreview] = useState(null);
 
   const addToCache = useCallback((key, dataURL) => {
@@ -43,6 +44,11 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       const key = getCacheKey(time);
 
       if (cacheRef.current.has(key)) {
+        const idx = accessOrderRef.current.indexOf(key);
+        if (idx !== -1) {
+          accessOrderRef.current.splice(idx, 1);
+          accessOrderRef.current.push(key);
+        }
         setPreview({
           dataURL: cacheRef.current.get(key),
           time: key,
@@ -58,15 +64,19 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       const pending = { abort: false };
       seekPendingRef.current = pending;
 
-      const seekTimeout = setTimeout(() => {
+      seekTimeoutRef.current = setTimeout(() => {
         video.removeEventListener("seeked", onSeeked);
+        seekTimeoutRef.current = null;
         if (seekPendingRef.current === pending) {
           seekPendingRef.current = null;
         }
       }, SEEK_TIMEOUT_MS);
 
       const onSeeked = () => {
-        clearTimeout(seekTimeout);
+        if (seekTimeoutRef.current) {
+          clearTimeout(seekTimeoutRef.current);
+          seekTimeoutRef.current = null;
+        }
         if (pending.abort) return;
         if (seekPendingRef.current !== pending) return;
         seekPendingRef.current = null;
@@ -95,6 +105,11 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       const key = getCacheKey(time);
 
       if (cacheRef.current.has(key)) {
+        const idx = accessOrderRef.current.indexOf(key);
+        if (idx !== -1) {
+          accessOrderRef.current.splice(idx, 1);
+          accessOrderRef.current.push(key);
+        }
         setPreview({
           dataURL: cacheRef.current.get(key),
           time: key,
@@ -120,6 +135,10 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
     if (seekPendingRef.current) {
       seekPendingRef.current.abort = true;
       seekPendingRef.current = null;
+    }
+    if (seekTimeoutRef.current) {
+      clearTimeout(seekTimeoutRef.current);
+      seekTimeoutRef.current = null;
     }
     setPreview(null);
   }, []);
@@ -160,6 +179,9 @@ const useThumbnailPreview = (thumbnailVideoRef, canvasRef, duration) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (seekPendingRef.current) {
         seekPendingRef.current.abort = true;
+      }
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
       }
     };
   }, []);
