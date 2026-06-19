@@ -208,6 +208,73 @@ function reducer(state, action) {
         col: restored.col,
       };
     }
+    case 'START_ACCELERATION': {
+      const { key } = action;
+      return {
+        ...state,
+        accelerationState: {
+          activeKey: key,
+          startTime: Date.now(),
+          stepMultiplier: 1,
+          intervalId: null,
+        },
+      };
+    }
+    case 'UPDATE_ACCELERATION': {
+      const { multiplier, intervalId } = action;
+      return {
+        ...state,
+        accelerationState: {
+          ...state.accelerationState,
+          stepMultiplier: multiplier,
+          intervalId: intervalId ?? state.accelerationState.intervalId,
+        },
+      };
+    }
+    case 'STOP_ACCELERATION': {
+      if (state.accelerationState.intervalId) {
+        clearInterval(state.accelerationState.intervalId);
+      }
+      return {
+        ...state,
+        accelerationState: {
+          activeKey: null,
+          startTime: null,
+          stepMultiplier: 1,
+          intervalId: null,
+        },
+      };
+    }
+    case 'SAVE_ZONE_FOCUS': {
+      const { zone, row, col } = action;
+      return {
+        ...state,
+        lastFocusPerZone: {
+          ...state.lastFocusPerZone,
+          [zone]: { row, col },
+        },
+      };
+    }
+    case 'SKIP_TO_ZONE': {
+      const { targetZone, targetRow, targetCol, restoreLastFocus } = action;
+      
+      if (restoreLastFocus && state.lastFocusPerZone[targetZone]) {
+        const saved = state.lastFocusPerZone[targetZone];
+        return {
+          ...state,
+          zone: targetZone,
+          row: saved.row,
+          col: saved.col,
+        };
+      }
+      
+      return {
+        ...state,
+        zone: targetZone,
+        row: targetRow ?? 0,
+        col: targetCol ?? 0,
+      };
+    }
     default:
       return state;
   }
