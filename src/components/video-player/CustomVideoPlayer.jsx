@@ -49,6 +49,15 @@ const getFocusableElements = (root, dialogOpen) => {
   });
 };
 
+const focusElement = (root, selector) => {
+  const el = root?.querySelector(selector);
+  if (el && !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true") {
+    el.focus();
+    return true;
+  }
+  return false;
+};
+
 const focusByOffset = (root, dialogOpen, offset) => {
   const focusables = getFocusableElements(root, dialogOpen);
   if (!focusables.length) return;
@@ -498,11 +507,23 @@ const CustomVideoPlayer = ({
           break;
         case "ArrowUp":
           revealControls();
-          focusByOffset(playerRef.current, false, -1);
+          if (isTimelineFocused) {
+            focusElement(playerRef.current, ".custom-video-player__control-btn--play");
+          } else if (document.activeElement?.closest(".custom-video-player__controls")) {
+            focusElement(playerRef.current, ".custom-video-player__progress");
+          } else {
+            focusByOffset(playerRef.current, false, -1);
+          }
           break;
         case "ArrowDown":
           revealControls();
-          focusByOffset(playerRef.current, false, 1);
+          if (isTimelineFocused) {
+            focusByOffset(playerRef.current, false, 1);
+          } else if (document.activeElement?.closest(".custom-video-player__chrome")) {
+            focusElement(playerRef.current, ".custom-video-player__progress");
+          } else {
+            focusByOffset(playerRef.current, false, 1);
+          }
           break;
         case "Backspace":
           event.preventDefault();
