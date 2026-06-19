@@ -765,7 +765,7 @@ const CustomVideoPlayer = ({
         hls.destroy();
       }
     };
-  }, [selfContained, movieId, episode, videoRef]);
+  }, [selfContained, movieId, episode, videoRef, setThumbnailSource]);
 
   useEffect(() => {
     const video = videoRef?.current;
