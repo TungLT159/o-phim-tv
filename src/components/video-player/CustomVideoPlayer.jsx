@@ -433,6 +433,8 @@ const CustomVideoPlayer = ({
 
   useEffect(() => {
     const handleKeyDown = (event) => {
+      if (!event.target?.closest?.('.custom-video-player')) return;
+      
       const tagName = event.target?.tagName;
       if (
         tagName === "INPUT" ||
