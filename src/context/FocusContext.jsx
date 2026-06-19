@@ -429,15 +429,12 @@ export function FocusProvider({ children }) {
   }, [focusCurrent]);
 
   useEffect(() => {
-    if (!isTv) return undefined;
     const timer = setTimeout(() => focusCurrent('auto'), 0);
     return () => clearTimeout(timer);
-  }, [focusCurrent, isTv]);
+  }, [focusCurrent]);
 
   // Keyboard handler with acceleration
   useEffect(() => {
-    if (!isTv) return;
-
     const handleKeyDown = (e) => {
       if (e.target?.closest?.('.custom-video-player')) return;
 
@@ -505,7 +502,7 @@ export function FocusProvider({ children }) {
         clearInterval(accelerationIntervalRef.current);
       }
     };
-  }, [isTv, state.accelerationState]);
+  }, [state.accelerationState]);
 
   const value = {
     state,
