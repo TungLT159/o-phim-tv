@@ -1,0 +1,39 @@
+.thumbnail-preview {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  &[style*="left"] {
+    opacity: 1;
+  }
+
+  &__image {
+    width: 160px;
+    height: 90px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    background: #000;
+    display: block;
+  }
+
+  &__time {
+    margin-top: 4px;
+    padding: 2px 8px;
+    background: rgba(0, 0, 0, 0.85);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}
