@@ -12,6 +12,7 @@ import CustomVideoPlayerChrome from "./CustomVideoPlayerChrome";
 import EpisodeSidebar from "./episode-sidebar/EpisodeSidebar";
 import InfoOverlay from "./info-overlay/InfoOverlay";
 import AutoplayCard from "./autoplay-card/AutoplayCard";
+import SeekTooltip from './seek-tooltip/SeekTooltip';
 import "./custom-video-player.scss";
 
 export const shouldUseNativeControls = () => {
@@ -107,8 +108,40 @@ const CustomVideoPlayer = ({
   const [showFpsDebug] = useState(shouldShowFpsDebug);
   const [fpsDebugMetrics, setFpsDebugMetrics] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [seekTooltip, setSeekTooltip] = useState({
+    visible: false,
+    currentTime: 0,
+    position: 0,
+  });
+  const seekAccelerationRef = useRef({
+    startTime: null,
+    intervalId: null,
+  });
 
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
+
+  const calculateSeekStep = useCallback((elapsedMs) => {
+    if (elapsedMs < 500) return 10;
+    if (elapsedMs < 1500) return 30;
+    if (elapsedMs < 3000) return 60;
+    return 120;
+  }, []);
+
+  const updateSeekTooltip = useCallback((time) => {
+    const video = getVideo();
+    if (!video || !video.duration) return;
+    
+    const position = (time / video.duration) * 100;
+    setSeekTooltip({
+      visible: true,
+      currentTime: time,
+      position,
+    });
+  }, [getVideo]);
+
+  const hideSeekTooltip = useCallback(() => {
+    setSeekTooltip(prev => ({ ...prev, visible: false }));
+  }, []);
 
   const clearHideControlsTimer = useCallback(() => {
     if (hideControlsTimerRef.current) {
@@ -151,10 +184,11 @@ const CustomVideoPlayer = ({
       );
       video.currentTime = nextTime;
       setCurrentTime(nextTime);
+      updateSeekTooltip(nextTime);
       setShowControls(true);
       revealControls();
     },
-    [getVideo, revealControls],
+    [getVideo, revealControls, updateSeekTooltip],
   );
 
   const showSeekFeedback = useCallback((side, label) => {
@@ -405,7 +439,17 @@ const CustomVideoPlayer = ({
           break;
         case "ArrowLeft":
           if (isTimelineFocused) {
-            seekBy(-30);
+            // Start or continue seek acceleration
+            if (!seekAccelerationRef.current.startTime) {
+              seekAccelerationRef.current.startTime = Date.now();
+              
+              seekAccelerationRef.current.intervalId = setInterval(() => {
+                const elapsed = Date.now() - seekAccelerationRef.current.startTime;
+                const step = calculateSeekStep(elapsed);
+                seekBy(-step);
+              }, 200);
+            }
+            seekBy(-10);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, -1);
@@ -413,7 +457,17 @@ const CustomVideoPlayer = ({
           break;
         case "ArrowRight":
           if (isTimelineFocused) {
-            seekBy(30);
+            // Start or continue seek acceleration
+            if (!seekAccelerationRef.current.startTime) {
+              seekAccelerationRef.current.startTime = Date.now();
+              
+              seekAccelerationRef.current.intervalId = setInterval(() => {
+                const elapsed = Date.now() - seekAccelerationRef.current.startTime;
+                const step = calculateSeekStep(elapsed);
+                seekBy(step);
+              }, 200);
+            }
+            seekBy(10);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, 1);
@@ -448,9 +502,27 @@ const CustomVideoPlayer = ({
       }
     };
 
+    const handleKeyUp = (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        // Stop seek acceleration
+        if (seekAccelerationRef.current.intervalId) {
+          clearInterval(seekAccelerationRef.current.intervalId);
+        }
+        seekAccelerationRef.current.startTime = null;
+        seekAccelerationRef.current.intervalId = null;
+        
+        // Hide tooltip after delay
+        setTimeout(hideSeekTooltip, 500);
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, togglePlay, seekBy]);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, togglePlay, seekBy, calculateSeekStep, hideSeekTooltip]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -850,6 +922,15 @@ const CustomVideoPlayer = ({
       )}
 
       {fpsDebugOverlay}
+
+      <div className="custom-video-player__progress-wrapper">
+        <SeekTooltip
+          visible={seekTooltip.visible}
+          currentTime={seekTooltip.currentTime}
+          duration={duration}
+          position={seekTooltip.position}
+        />
+      </div>
 
       <CustomVideoPlayerChrome
         title={title}

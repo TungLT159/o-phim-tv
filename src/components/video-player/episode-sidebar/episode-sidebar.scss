@@ -62,6 +62,8 @@
     padding: $tv-gap-md;
     height: calc(100vh - 120px);
     overflow-y: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
     gap: $tv-gap-sm;
@@ -97,6 +99,8 @@
     cursor: pointer;
     text-align: left;
     width: 100%;
+    will-change: transform;
+    contain: layout style paint;
     transition: 
       transform $tv-focus-transition,
       border $tv-focus-transition,
