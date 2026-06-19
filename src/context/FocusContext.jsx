@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { isTauri } from '../tauri-bridge';
+import { throttle } from '../utils/throttle';
 
 // Zone skip rules for fast navigation
 const ZONE_SKIP_RULES = {
@@ -364,6 +365,7 @@ function findPrevRow(zoneGrid, currentRow, stepMultiplier = 1) {
 export function FocusProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const refMap = useRef(new Map());
+  const prevStateRef = useRef({ zone: 1, row: 0, col: 0 });
   const isTv = isTauri();
 
   const register = useCallback((zone, row, col, domRef) => {
@@ -397,11 +399,26 @@ export function FocusProvider({ children }) {
     const domRef = refMap.current.get(key);
     if (domRef && domRef.current) {
       domRef.current.focus();
+      
+      // Determine if should scroll to center
+      const prevState = prevStateRef.current;
+      const shouldCenter = (
+        state.row !== prevState.row ||
+        state.zone !== prevState.zone
+      );
+      
       domRef.current.scrollIntoView?.({
-        block: 'nearest',
+        block: shouldCenter ? 'center' : 'nearest',
         inline: 'nearest',
         behavior: scrollBehavior,
       });
+      
+      // Update previous state
+      prevStateRef.current = {
+        zone: state.zone,
+        row: state.row,
+        col: state.col,
+      };
     }
   }, [state.zone, state.row, state.col]);
 
