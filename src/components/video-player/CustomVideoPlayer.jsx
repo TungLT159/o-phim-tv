@@ -131,10 +131,10 @@ const CustomVideoPlayer = ({
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
   const calculateSeekStep = useCallback((elapsedMs) => {
-    if (elapsedMs < 500) return 15;
-    if (elapsedMs < 1500) return 60;
-    if (elapsedMs < 3000) return 150;
-    return 300;
+    if (elapsedMs < 300) return 10;
+    if (elapsedMs < 1000) return 60;
+    if (elapsedMs < 2000) return 300;
+    return 900;
   }, []);
 
   const updateSeekTooltip = useCallback((time) => {
@@ -470,9 +470,9 @@ const CustomVideoPlayer = ({
                 const elapsed = Date.now() - seekAccelerationRef.current.startTime;
                 const step = calculateSeekStep(elapsed);
                 seekBy(-step);
-              }, 200);
+              }, 120);
             }
-            seekBy(-15);
+            seekBy(-10);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, -1);
@@ -488,9 +488,9 @@ const CustomVideoPlayer = ({
                 const elapsed = Date.now() - seekAccelerationRef.current.startTime;
                 const step = calculateSeekStep(elapsed);
                 seekBy(step);
-              }, 200);
+              }, 120);
             }
-            seekBy(15);
+            seekBy(10);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, 1);
@@ -1012,8 +1012,8 @@ const CustomVideoPlayer = ({
         episodes={episodes}
         onSeek={handleSeek}
         onTogglePlay={togglePlay}
-        onSeekBackward={() => seekBy(-30)}
-        onSeekForward={() => seekBy(30)}
+        onSeekBackward={() => seekBy(-60)}
+        onSeekForward={() => seekBy(60)}
         onPrevEpisode={onPrevEpisode}
         onNextEpisode={onNextEpisode}
         onTogglePictureInPicture={togglePictureInPicture}
