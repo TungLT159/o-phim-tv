@@ -289,18 +289,38 @@ function findNearestRow(zoneGrid, targetRow, maxRow) {
   );
 }
 
-function findNextRow(zoneGrid, currentRow) {
+function findNextRow(zoneGrid, currentRow, stepMultiplier = 1) {
   if (!zoneGrid) return currentRow;
   const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
-  const next = rows.find(r => r > currentRow);
-  return next !== undefined ? next : currentRow;
+  const currentIndex = rows.indexOf(currentRow);
+  
+  if (currentIndex === -1) {
+    // Current row not in grid, return first row
+    return rows[0] ?? currentRow;
+  }
+  
+  const targetIndex = Math.min(
+    currentIndex + stepMultiplier,
+    rows.length - 1
+  );
+  return rows[targetIndex];
 }
 
-function findPrevRow(zoneGrid, currentRow) {
+function findPrevRow(zoneGrid, currentRow, stepMultiplier = 1) {
   if (!zoneGrid) return currentRow;
   const rows = Object.keys(zoneGrid).map(Number).sort((a,b) => a-b);
-  const prev = rows.slice().reverse().find(r => r < currentRow);
-  return prev !== undefined ? prev : currentRow;
+  const currentIndex = rows.indexOf(currentRow);
+  
+  if (currentIndex === -1) {
+    // Current row not in grid, return last row
+    return rows[rows.length - 1] ?? currentRow;
+  }
+  
+  const targetIndex = Math.max(
+    currentIndex - stepMultiplier,
+    0
+  );
+  return rows[targetIndex];
 }
 
 export function FocusProvider({ children }) {
