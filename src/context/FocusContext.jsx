@@ -227,12 +227,12 @@ function reducer(state, action) {
         accelerationState: {
           ...state.accelerationState,
           stepMultiplier: multiplier,
-          intervalId: intervalId ?? state.accelerationState.intervalId,
+          intervalId: intervalId ?? state.accelerationState?.intervalId,
         },
       };
     }
     case 'STOP_ACCELERATION': {
-      if (state.accelerationState.intervalId) {
+      if (state.accelerationState?.intervalId) {
         clearInterval(state.accelerationState.intervalId);
       }
       return {
