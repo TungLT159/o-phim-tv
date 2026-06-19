@@ -1,4 +1,5 @@
 import React from "react";
+import ThumbnailPreview from "./thumbnail-preview/ThumbnailPreview";
 
 const formatVideoTime = (value) => {
   if (!Number.isFinite(value) || value <= 0) return "00:00";
@@ -59,6 +60,9 @@ const CustomVideoPlayerChrome = ({
   onOpenEpisodeList,
   autoPlayEnabled,
   onToggleAutoPlay,
+  onTimelineHover,
+  onTimelineLeave,
+  thumbnailPreview,
 }) => {
   const {
     showControls,
@@ -84,7 +88,13 @@ const CustomVideoPlayerChrome = ({
         {episodeLabel && <strong>{episodeLabel}</strong>}
       </div>
 
-      <div className="custom-video-player__progress-row">
+      <div className="custom-video-player__progress-row" style={{ position: "relative" }}>
+        <ThumbnailPreview
+          visible={!!thumbnailPreview?.dataURL}
+          dataURL={thumbnailPreview?.dataURL}
+          time={thumbnailPreview?.time}
+          position={thumbnailPreview?.position}
+        />
         <span>{formatVideoTime(currentTime)}</span>
         <input
           className="custom-video-player__progress"
@@ -94,6 +104,14 @@ const CustomVideoPlayerChrome = ({
           step="0.1"
           value={currentTime}
           onChange={onSeek}
+          onMouseMove={(e) => {
+            if (!onTimelineHover) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const time = percent * (duration || 0);
+            onTimelineHover(time, percent * 100);
+          }}
+          onMouseLeave={onTimelineLeave}
           data-tv-focusable="true"
           aria-label="Tua video"
           style={{ "--progress": `${progressPercent}%` }}
