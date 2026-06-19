@@ -1035,8 +1035,8 @@ const CustomVideoPlayer = ({
         episodes={episodes}
         onSeek={handleSeek}
         onTogglePlay={togglePlay}
-        onSeekBackward={() => seekBy(-60)}
-        onSeekForward={() => seekBy(60)}
+        onSeekBackward={() => seekBy(-10)}
+        onSeekForward={() => seekBy(10)}
         onPrevEpisode={onPrevEpisode}
         onNextEpisode={onNextEpisode}
         onTogglePictureInPicture={togglePictureInPicture}
