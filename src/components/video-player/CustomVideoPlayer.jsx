@@ -13,6 +13,7 @@ import EpisodeSidebar from "./episode-sidebar/EpisodeSidebar";
 import InfoOverlay from "./info-overlay/InfoOverlay";
 import AutoplayCard from "./autoplay-card/AutoplayCard";
 import SeekTooltip from './seek-tooltip/SeekTooltip';
+import useThumbnailPreview from "../../hooks/useThumbnailPreview";
 import "./custom-video-player.scss";
 
 export const shouldUseNativeControls = () => {
@@ -85,6 +86,8 @@ const CustomVideoPlayer = ({
 }) => {
   const internalVideoRef = useRef(null);
   const videoRef = externalVideoRef || internalVideoRef;
+  const thumbnailVideoRef = useRef(null);
+  const canvasRef = useRef(null);
   const selfContained = Boolean(movieId && episode);
   const episodeName = externalEpisodeName || episode?.name;
   const playerRef = useRef(null);
@@ -117,6 +120,13 @@ const CustomVideoPlayer = ({
     startTime: null,
     intervalId: null,
   });
+
+  const {
+    preview: thumbnailPreview,
+    requestPreview: requestThumbnail,
+    cancelRequest: cancelThumbnail,
+    setSource: setThumbnailSource,
+  } = useThumbnailPreview(thumbnailVideoRef, canvasRef, duration);
 
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
@@ -254,6 +264,17 @@ const CustomVideoPlayer = ({
     },
     [getVideo],
   );
+
+  const handleTimelineHover = useCallback(
+    (time, positionPercent) => {
+      requestThumbnail(time, positionPercent);
+    },
+    [requestThumbnail],
+  );
+
+  const handleTimelineLeave = useCallback(() => {
+    cancelThumbnail();
+  }, [cancelThumbnail]);
 
   const togglePictureInPicture = useCallback(() => {
     const video = getVideo();
@@ -645,7 +666,11 @@ const CustomVideoPlayer = ({
           
           hls.loadSource(sourceUrl);
           hls.attachMedia(video);
-          
+
+          if (sourceUrl) {
+            setThumbnailSource(sourceUrl, Hls.isSupported() && (sourceUrl || "").includes(".m3u8"));
+          }
+
           hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
             clearTimeout(manifestTimeout);
             console.log('[CustomVideoPlayer] HLS manifest parsed', {
@@ -715,6 +740,9 @@ const CustomVideoPlayer = ({
 
         video.src = playbackUrl;
         video.load();
+        if (playbackUrl) {
+          setThumbnailSource(playbackUrl, false);
+        }
         canPlayHandler = playAndPrefetch;
         video.addEventListener("canplay", canPlayHandler, { once: true });
       } catch (err) {
@@ -738,6 +766,20 @@ const CustomVideoPlayer = ({
       }
     };
   }, [selfContained, movieId, episode, videoRef]);
+
+  useEffect(() => {
+    const video = videoRef?.current;
+    if (!video || selfContained) return;
+    const syncSource = () => {
+      const src = video.src || video.currentSrc;
+      if (src && src !== window.location.href) {
+        setThumbnailSource(src, (src || "").includes(".m3u8"));
+      }
+    };
+    syncSource();
+    video.addEventListener("loadedmetadata", syncSource, { once: true });
+    return () => video.removeEventListener("loadedmetadata", syncSource);
+  }, [selfContained, videoRef, setThumbnailSource]);
 
   useEffect(() => {
     if (!autoFullscreen) return;
@@ -840,6 +882,22 @@ const CustomVideoPlayer = ({
       >
         Trình duyệt của bạn không hỗ trợ video HTML5.
       </video>
+
+      <video
+        ref={thumbnailVideoRef}
+        preload="auto"
+        width="160"
+        height="90"
+        muted
+        crossOrigin="anonymous"
+        style={{ display: "none" }}
+      />
+      <canvas
+        ref={canvasRef}
+        width={160}
+        height={90}
+        style={{ display: "none" }}
+      />
 
       {onClose && (
         <button
@@ -959,6 +1017,9 @@ const CustomVideoPlayer = ({
         onOpenEpisodeList={hasEpisodeDialog ? () => setSidebarOpen(true) : undefined}
         autoPlayEnabled={autoPlayEnabled}
         onToggleAutoPlay={onToggleAutoPlay}
+        onTimelineHover={handleTimelineHover}
+        onTimelineLeave={handleTimelineLeave}
+        thumbnailPreview={thumbnailPreview}
       />
     </div>
   );
