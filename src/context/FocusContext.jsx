@@ -433,43 +433,67 @@ export function FocusProvider({ children }) {
     return () => clearTimeout(timer);
   }, [focusCurrent, isTv]);
 
-  // Keyboard handler
+  // Keyboard handler with acceleration
   useEffect(() => {
     if (!isTv) return;
 
     const handleKeyDown = (e) => {
       if (e.target?.closest?.('.custom-video-player')) return;
 
-      switch (e.key) {
-        case 'ArrowUp':
-        case 'ArrowDown':
-        case 'ArrowLeft':
-        case 'ArrowRight':
-          e.preventDefault();
-          dispatch({ type: 'NAVIGATE', direction: e.key });
-          break;
-        case 'Enter':
-        case ' ': {
-          const focused = document.activeElement;
-          if (focused && focused !== document.body) {
-            e.preventDefault();
-            focused.click();
-          }
-          break;
+      const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+      
+      if (arrowKeys.includes(e.key)) {
+        e.preventDefault();
+        
+        // Start acceleration if not already started
+        if (!state.accelerationState.activeKey) {
+          dispatch({ type: 'START_ACCELERATION', key: e.key });
+          
+          // Start acceleration interval
+          const intervalId = setInterval(() => {
+            const elapsed = Date.now() - state.accelerationState.startTime;
+            let multiplier = 1;
+            
+            if (elapsed >= 2000) multiplier = 8;
+            else if (elapsed >= 1000) multiplier = 4;
+            else if (elapsed >= 500) multiplier = 2;
+            
+            if (multiplier !== state.accelerationState.stepMultiplier) {
+              dispatch({ type: 'UPDATE_ACCELERATION', multiplier, intervalId });
+            }
+          }, 150);
+          
+          dispatch({ type: 'UPDATE_ACCELERATION', multiplier: 1, intervalId });
         }
-        case 'Backspace':
-        case 'Escape':
+        
+        dispatch({ type: 'NAVIGATE', direction: e.key });
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        const focused = document.activeElement;
+        if (focused && focused !== document.body) {
           e.preventDefault();
-          window.history.back();
-          break;
-        default:
-          break;
+          focused.click();
+        }
+      } else if (e.key === 'Backspace' || e.key === 'Escape') {
+        e.preventDefault();
+        window.history.back();
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+      if (arrowKeys.includes(e.key) && state.accelerationState.activeKey === e.key) {
+        dispatch({ type: 'STOP_ACCELERATION' });
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isTv]);
+    document.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isTv, state.accelerationState]);
 
   const value = {
     state,
