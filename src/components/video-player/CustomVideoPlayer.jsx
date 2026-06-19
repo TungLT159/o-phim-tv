@@ -140,10 +140,10 @@ const CustomVideoPlayer = ({
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
   const calculateSeekStep = useCallback((elapsedMs) => {
-    if (elapsedMs < 300) return 10;
-    if (elapsedMs < 1000) return 60;
-    if (elapsedMs < 2000) return 300;
-    return 900;
+    if (elapsedMs < 200) return 30;
+    if (elapsedMs < 600) return 150;
+    if (elapsedMs < 1500) return 600;
+    return 1500;
   }, []);
 
   const updateSeekTooltip = useCallback((time) => {
@@ -481,9 +481,9 @@ const CustomVideoPlayer = ({
                 const elapsed = Date.now() - seekAccelerationRef.current.startTime;
                 const step = calculateSeekStep(elapsed);
                 seekBy(-step);
-              }, 120);
+              }, 100);
             }
-            seekBy(-10);
+            seekBy(-15);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, -1);
@@ -499,9 +499,9 @@ const CustomVideoPlayer = ({
                 const elapsed = Date.now() - seekAccelerationRef.current.startTime;
                 const step = calculateSeekStep(elapsed);
                 seekBy(step);
-              }, 120);
+              }, 100);
             }
-            seekBy(10);
+            seekBy(15);
           } else {
             revealControls();
             focusByOffset(playerRef.current, false, 1);
