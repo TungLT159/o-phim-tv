@@ -1,0 +1,89 @@
+@import '../../scss/tv-variables.scss';
+
+.episode-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.episode-accordion__group {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.episode-accordion__header {
+  display: flex;
+  align-items: center;
+  gap: $tv-gap-md;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: $tv-text-primary;
+  font-size: $tv-text-body;
+  font-weight: $tv-weight-semibold;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform $tv-focus-transition,
+    border $tv-focus-transition,
+    box-shadow $tv-focus-transition,
+    background $tv-focus-transition;
+
+  &--focused {
+    border: $tv-focus-border;
+    transform: scale(1.02);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: $tv-focus-shadow;
+  }
+}
+
+.episode-accordion__chevron {
+  font-size: 1rem;
+  transition: transform 200ms ease;
+  color: $tv-text-secondary;
+  flex-shrink: 0;
+
+  &--open {
+    transform: rotate(90deg);
+  }
+}
+
+.episode-accordion__header-title {
+  flex: 1;
+  min-width: 0;
+  @include tv-text-ellipsis(1);
+}
+
+.episode-accordion__header-count {
+  font-size: $tv-text-small;
+  font-weight: $tv-weight-regular;
+  color: $tv-text-tertiary;
+  flex-shrink: 0;
+}
+
+.episode-accordion__content {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 300ms ease, padding 300ms ease;
+  padding: 0 0.5rem;
+
+  &--open {
+    max-height: 9999px;
+    padding: 0 0.5rem $tv-gap-lg;
+  }
+}
+
+.episode-accordion__ep-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: $tv-gap-md;
+}
+
+// Sidebar variant (single column)
+.episode-accordion--sidebar {
+  .episode-accordion__ep-list {
+    grid-template-columns: 1fr;
+    gap: $tv-gap-sm;
+  }
+}
