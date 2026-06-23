@@ -1,10 +1,40 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useFocusable, useFocus } from '../../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../../utils/episodeDisplayName';
+import EpisodeGroupAccordion from '../../episode-group-accordion/EpisodeGroupAccordion';
 import './episode-sidebar.scss';
+
+function EpisodeSidebarItem({ episode, row, isCurrent, onClick }) {
+  const { ref, focused } = useFocusable(3, row, 0);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
+  return (
+    <button
+      ref={ref}
+      className={`episode-sidebar__item ${focused ? 'episode-sidebar__item--focused' : ''} ${isCurrent ? 'episode-sidebar__item--current' : ''}`}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      type="button"
+      aria-current={isCurrent ? 'true' : undefined}
+    >
+      <div className="episode-sidebar__item-info">
+        <span className="episode-sidebar__item-number">
+          {formatEpisodeDisplayName(episode.name)}
+        </span>
+      </div>
+    </button>
+  );
+}
 
 const EpisodeSidebar = ({
   episodes = [],
+  episodeGroups = [],
   currentEpisode,
   isOpen = false,
   onClose,
@@ -13,26 +43,32 @@ const EpisodeSidebar = ({
   const { setTrap, clearTrap } = useFocus();
   const { ref: closeRef, focused: closeFocused } = useFocusable(3, 0, 0);
 
-  // Set focus trap when sidebar opens
+  const handleSelect = useCallback((ep) => {
+    onSelectEpisode(ep);
+    onClose();
+  }, [onSelectEpisode, onClose]);
+
   useEffect(() => {
     if (isOpen) {
-      setTrap(3); // Trap focus in zone 3
-      // Auto-focus close button
-      if (closeRef.current) {
-        closeRef.current.focus();
-      }
+      setTrap(3);
+      const timer = setTimeout(() => {
+        if (closeRef.current) {
+          closeRef.current.focus();
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     } else {
       clearTrap();
     }
   }, [isOpen, setTrap, clearTrap, closeRef]);
 
-  // Handle Backspace/Escape to close
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'Backspace' || e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
       }
     };
@@ -44,6 +80,21 @@ const EpisodeSidebar = ({
   if (!isOpen) return null;
 
   const currentEpisodeKey = currentEpisode?.episodeKey || currentEpisode?.slug || currentEpisode?.name;
+  const hasGroups = episodeGroups.length > 1;
+
+  const renderSidebarEpisode = (ep, row, col) => {
+    const episodeKey = ep.episodeKey || ep.slug || ep.name;
+    const isCurrent = episodeKey === currentEpisodeKey;
+    return (
+      <EpisodeSidebarItem
+        key={episodeKey}
+        episode={ep}
+        row={row}
+        isCurrent={isCurrent}
+        onClick={() => handleSelect(ep)}
+      />
+    );
+  };
 
   return (
     <div 
@@ -66,62 +117,34 @@ const EpisodeSidebar = ({
       </div>
 
       <div className="episode-sidebar__list">
-        {episodes.map((episode, index) => {
-          const episodeKey = episode.episodeKey || episode.slug || episode.name;
-          const isCurrent = episodeKey === currentEpisodeKey;
-
-          return (
-            <EpisodeSidebarItem
-              key={episodeKey}
-              episode={episode}
-              row={index + 1}
-              isCurrent={isCurrent}
-              onClick={() => {
-                onSelectEpisode(episode);
-                onClose();
-              }}
-            />
-          );
-        })}
+        {hasGroups ? (
+          <EpisodeGroupAccordion
+            groups={episodeGroups}
+            currentEpisode={currentEpisode}
+            zone={3}
+            baseRow={1}
+            columns={1}
+            variant="sidebar"
+            renderEpisode={renderSidebarEpisode}
+          />
+        ) : (
+          episodes.map((ep, index) => {
+            const episodeKey = ep.episodeKey || ep.slug || ep.name;
+            const isCurrent = episodeKey === currentEpisodeKey;
+            return (
+              <EpisodeSidebarItem
+                key={episodeKey}
+                episode={ep}
+                row={index + 1}
+                isCurrent={isCurrent}
+                onClick={() => handleSelect(ep)}
+              />
+            );
+          })
+        )}
       </div>
     </div>
   );
 };
-
-// Sidebar item sub-component
-function EpisodeSidebarItem({ episode, row, isCurrent, onClick }) {
-  const { ref, focused } = useFocusable(3, row, 0);
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onClick();
-    }
-  };
-
-  return (
-    <button
-      ref={ref}
-      className={`episode-sidebar__item ${focused ? 'episode-sidebar__item--focused' : ''} ${isCurrent ? 'episode-sidebar__item--current' : ''}`}
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
-      type="button"
-      aria-current={isCurrent ? 'true' : undefined}
-    >
-      <div className="episode-sidebar__item-thumbnail">
-        {/* TODO: Thumbnail will be added in Phase 4 */}
-        <div className="episode-sidebar__item-placeholder">
-          <i className="bx bx-play-circle" />
-        </div>
-      </div>
-      <div className="episode-sidebar__item-info">
-        <span className="episode-sidebar__item-number">
-          {formatEpisodeDisplayName(episode.name)}
-        </span>
-        <span className="episode-sidebar__item-title">{episode.name}</span>
-      </div>
-    </button>
-  );
-}
 
 export default EpisodeSidebar;
