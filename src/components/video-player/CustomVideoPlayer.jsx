@@ -30,25 +30,6 @@ const formatFpsMetric = (value) => {
   return value.toFixed(1);
 };
 
-const PLAYER_FOCUSABLE_SELECTOR = [
-  ".custom-video-player__close-btn",
-  ".custom-video-player__center-play",
-  ".custom-video-player__progress",
-  ".custom-video-player__chrome button:not(:disabled)",
-  ".custom-video-player__autoplay-card button:not(:disabled)",
-].join(", ");
-
-const DIALOG_FOCUSABLE_SELECTOR = ".custom-video-player__episode-dialog button:not(:disabled)";
-
-const getFocusableElements = (root, dialogOpen) => {
-  if (!root) return [];
-  const selector = dialogOpen ? DIALOG_FOCUSABLE_SELECTOR : PLAYER_FOCUSABLE_SELECTOR;
-  return Array.from(root.querySelectorAll(selector)).filter((element) => {
-    if (element.classList.contains("custom-video-player__hit-area")) return false;
-    return !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true";
-  });
-};
-
 const focusElement = (root, selector) => {
   const el = root?.querySelector(selector);
   if (el && !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true") {
@@ -56,17 +37,6 @@ const focusElement = (root, selector) => {
     return true;
   }
   return false;
-};
-
-const focusByOffset = (root, dialogOpen, offset) => {
-  const focusables = getFocusableElements(root, dialogOpen);
-  if (!focusables.length) return;
-
-  const activeIndex = focusables.indexOf(document.activeElement);
-  const nextIndex = activeIndex >= 0
-    ? Math.min(Math.max(activeIndex + offset, 0), focusables.length - 1)
-    : 0;
-  focusables[nextIndex]?.focus();
 };
 
 const CustomVideoPlayer = ({
@@ -86,6 +56,7 @@ const CustomVideoPlayer = ({
   onCancelAutoPlay,
   onToggleAutoPlay,
   episodes = [],
+  episodeGroups = [],
   currentEpisode,
   onSelectEpisode,
   movieId,
@@ -128,7 +99,11 @@ const CustomVideoPlayer = ({
   const seekAccelerationRef = useRef({
     startTime: null,
     intervalId: null,
+    tickCount: 0,
   });
+  const [seekPreviewTime, setSeekPreviewTime] = useState(null);
+  const isSeekingRef = useRef(false);
+  const seekTargetRef = useRef(0);
 
   const {
     preview: thumbnailPreview,
@@ -138,13 +113,6 @@ const CustomVideoPlayer = ({
   } = useThumbnailPreview(thumbnailVideoRef, canvasRef, duration);
 
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
-
-  const calculateSeekStep = useCallback((elapsedMs) => {
-    if (elapsedMs < 200) return 30;
-    if (elapsedMs < 600) return 150;
-    if (elapsedMs < 1500) return 600;
-    return 1500;
-  }, []);
 
   const updateSeekTooltip = useCallback((time) => {
     const video = getVideo();
@@ -325,12 +293,90 @@ const CustomVideoPlayer = ({
 
   const focusFirstPlayerControl = useCallback(() => {
     const root = playerRef.current;
-    const focusables = getFocusableElements(root, false);
-    const preferred = focusables.find((element) =>
-      element.classList.contains("custom-video-player__control-btn--play"),
-    );
-    (preferred || focusables[0])?.focus();
+    if (!root) return;
+    const playBtn = root.querySelector(".custom-video-player__control-btn--play");
+    if (playBtn && !playBtn.hasAttribute("disabled")) {
+      playBtn.focus();
+    }
   }, []);
+
+  const moveControlFocus = useCallback((direction) => {
+    const root = playerRef.current;
+    if (!root) return;
+    const buttons = Array.from(root.querySelectorAll(
+      '.custom-video-player__controls button:not(:disabled)'
+    )).filter(btn =>
+      btn.offsetParent !== null && btn.getAttribute('aria-hidden') !== 'true'
+    );
+    if (!buttons.length) return;
+    const currentIndex = buttons.indexOf(document.activeElement);
+    if (currentIndex >= 0) {
+      const nextIndex = Math.min(Math.max(currentIndex + direction, 0), buttons.length - 1);
+      buttons[nextIndex]?.focus();
+    } else {
+      buttons[0]?.focus();
+    }
+  }, []);
+
+  const startSeekAcceleration = useCallback((direction) => {
+    const video = getVideo();
+    const dur = video?.duration || duration;
+    if (!dur) return;
+    if (seekAccelerationRef.current.startTime) return;
+
+    const startTime = Date.now();
+    seekAccelerationRef.current.startTime = startTime;
+    seekAccelerationRef.current.tickCount = 0;
+    isSeekingRef.current = true;
+    seekTargetRef.current = video?.currentTime || 0;
+
+    seekTargetRef.current = Math.min(Math.max(seekTargetRef.current + direction * 5, 0), dur);
+    setSeekPreviewTime(seekTargetRef.current);
+    if (video) video.currentTime = seekTargetRef.current;
+    updateSeekTooltip(seekTargetRef.current);
+
+    seekAccelerationRef.current.intervalId = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      seekAccelerationRef.current.tickCount += 1;
+      const tickCount = seekAccelerationRef.current.tickCount;
+
+      let stepSeconds;
+      if (elapsed < 1000) stepSeconds = 10;
+      else if (elapsed < 2000) stepSeconds = 20;
+      else stepSeconds = 40;
+
+      seekTargetRef.current = Math.min(Math.max(seekTargetRef.current + direction * stepSeconds, 0), dur);
+
+      setSeekPreviewTime(seekTargetRef.current);
+      updateSeekTooltip(seekTargetRef.current);
+
+      if (tickCount % 3 === 0) {
+        const v = getVideo();
+        if (v) v.currentTime = seekTargetRef.current;
+      }
+    }, 150);
+  }, [getVideo, duration, updateSeekTooltip]);
+
+  const stopSeekAcceleration = useCallback(() => {
+    if (seekAccelerationRef.current.intervalId) {
+      clearInterval(seekAccelerationRef.current.intervalId);
+    }
+    seekAccelerationRef.current.startTime = null;
+    seekAccelerationRef.current.intervalId = null;
+
+    const video = getVideo();
+    if (video && seekTargetRef.current > 0) {
+      video.currentTime = seekTargetRef.current;
+      setCurrentTime(seekTargetRef.current);
+    }
+
+    isSeekingRef.current = false;
+
+    setTimeout(() => {
+      setSeekPreviewTime(null);
+      hideSeekTooltip();
+    }, 500);
+  }, [getVideo, hideSeekTooltip]);
 
   useEffect(() => {
     const video = getVideo();
@@ -344,7 +390,9 @@ const CustomVideoPlayer = ({
       if (timeUpdateFrameRef.current) return;
 
       timeUpdateFrameRef.current = requestAnimationFrame(() => {
-        setCurrentTime(video.currentTime || 0);
+        if (!isSeekingRef.current) {
+          setCurrentTime(video.currentTime || 0);
+        }
         timeUpdateFrameRef.current = null;
       });
     };
@@ -434,17 +482,21 @@ const CustomVideoPlayer = ({
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (!event.target?.closest?.('.custom-video-player')) return;
-      
+
       const tagName = event.target?.tagName;
+      const isTimelineFocused = event.target?.classList?.contains('custom-video-player__progress');
       if (
-        tagName === "INPUT" ||
-        tagName === "TEXTAREA" ||
-        event.target?.isContentEditable
+        !isTimelineFocused && (
+          tagName === "INPUT" ||
+          tagName === "TEXTAREA" ||
+          event.target?.isContentEditable
+        )
       ) {
         return;
       }
 
-      const isTimelineFocused = event.target?.classList?.contains('custom-video-player__progress');
+      const isInControls = document.activeElement?.closest('.custom-video-player__controls');
+      const isCloseBtn = document.activeElement?.closest('.custom-video-player__close-btn');
 
       if (
         [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
@@ -453,88 +505,51 @@ const CustomVideoPlayer = ({
       }
 
       switch (event.key) {
-        case "Enter": {
-          const focused = document.activeElement;
-          if (isTimelineFocused) {
-            togglePlay();
-          } else if (playerRef.current?.contains(focused) && focused !== document.body) {
-            focused.click?.();
-          } else {
-            focusFirstPlayerControl();
-          }
-          break;
-        }
-        case " ":
+        case "Enter":
+        case " ": {
           if (playerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) {
             document.activeElement.click?.();
           } else {
             togglePlay();
           }
           break;
+        }
         case "ArrowLeft":
           if (isTimelineFocused) {
-            // Start or continue seek acceleration
-            if (!seekAccelerationRef.current.startTime) {
-              seekAccelerationRef.current.startTime = Date.now();
-              
-              seekAccelerationRef.current.intervalId = setInterval(() => {
-                const elapsed = Date.now() - seekAccelerationRef.current.startTime;
-                const step = calculateSeekStep(elapsed);
-                seekBy(-step);
-              }, 100);
-            }
-            seekBy(-15);
-          } else {
-            revealControls();
-            focusByOffset(playerRef.current, false, -1);
+            startSeekAcceleration(-1);
+          } else if (isInControls) {
+            moveControlFocus(-1);
           }
+          revealControls();
           break;
         case "ArrowRight":
           if (isTimelineFocused) {
-            // Start or continue seek acceleration
-            if (!seekAccelerationRef.current.startTime) {
-              seekAccelerationRef.current.startTime = Date.now();
-              
-              seekAccelerationRef.current.intervalId = setInterval(() => {
-                const elapsed = Date.now() - seekAccelerationRef.current.startTime;
-                const step = calculateSeekStep(elapsed);
-                seekBy(step);
-              }, 100);
-            }
-            seekBy(15);
-          } else {
-            revealControls();
-            focusByOffset(playerRef.current, false, 1);
+            startSeekAcceleration(1);
+          } else if (isInControls) {
+            moveControlFocus(1);
           }
+          revealControls();
           break;
         case "ArrowUp":
           revealControls();
           if (isTimelineFocused) {
-            focusElement(playerRef.current, ".custom-video-player__control-btn--play");
-          } else if (document.activeElement?.closest(".custom-video-player__controls")) {
+            focusElement(playerRef.current, ".custom-video-player__close-btn");
+          } else if (isInControls) {
             focusElement(playerRef.current, ".custom-video-player__progress");
-          } else {
-            focusByOffset(playerRef.current, false, -1);
+          } else if (isCloseBtn) {
+            const cp = playerRef.current?.querySelector(".custom-video-player__center-play");
+            if (cp && cp.offsetParent !== null) cp.focus();
           }
           break;
         case "ArrowDown":
           revealControls();
           if (isTimelineFocused) {
-            focusByOffset(playerRef.current, false, 1);
-          } else if (document.activeElement?.closest(".custom-video-player__chrome")) {
+            focusElement(playerRef.current, ".custom-video-player__control-btn--play");
+          } else if (isCloseBtn) {
             focusElement(playerRef.current, ".custom-video-player__progress");
-          } else {
-            focusByOffset(playerRef.current, false, 1);
           }
           break;
         case "Backspace":
-          event.preventDefault();
-          if (sidebarOpen) {
-            closeSidebar();
-          } else {
-            onClose?.();
-          }
-          break;
         case "Escape":
           event.preventDefault();
           if (sidebarOpen) {
@@ -550,15 +565,7 @@ const CustomVideoPlayer = ({
 
     const handleKeyUp = (event) => {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        // Stop seek acceleration
-        if (seekAccelerationRef.current.intervalId) {
-          clearInterval(seekAccelerationRef.current.intervalId);
-        }
-        seekAccelerationRef.current.startTime = null;
-        seekAccelerationRef.current.intervalId = null;
-        
-        // Hide tooltip after delay
-        setTimeout(hideSeekTooltip, 500);
+        stopSeekAcceleration();
       }
     };
 
@@ -568,7 +575,7 @@ const CustomVideoPlayer = ({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [closeSidebar, sidebarOpen, focusFirstPlayerControl, onClose, revealControls, togglePlay, seekBy, calculateSeekStep, hideSeekTooltip]);
+  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -939,6 +946,7 @@ const CustomVideoPlayer = ({
 
       <EpisodeSidebar
         episodes={episodes}
+        episodeGroups={episodeGroups}
         currentEpisode={effectiveCurrentEpisode}
         isOpen={sidebarOpen}
         onClose={closeSidebar}
@@ -1046,6 +1054,7 @@ const CustomVideoPlayer = ({
         onTimelineHover={handleTimelineHover}
         onTimelineLeave={handleTimelineLeave}
         thumbnailPreview={thumbnailPreview}
+        seekPreviewTime={seekPreviewTime}
       />
     </div>
   );
