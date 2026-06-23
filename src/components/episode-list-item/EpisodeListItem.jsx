@@ -13,9 +13,6 @@ const EpisodeListItem = ({
 }) => {
   const { ref, focused } = useFocusable(zone, row, col);
 
-  // TODO: TMDB episode thumbnail fetching will be added in Phase 3
-  // For now, always use placeholder
-
   const episodeNumber = formatEpisodeDisplayName(episode.name);
   const episodeDescription = episode.description || '';
   const duration = episode.duration || '';
@@ -32,7 +29,6 @@ const EpisodeListItem = ({
   };
 
   useEffect(() => {
-    // Auto-scroll to center when focused
     if (focused && ref.current && ref.current.scrollIntoView) {
       ref.current.scrollIntoView({
         behavior: 'smooth',
@@ -52,12 +48,6 @@ const EpisodeListItem = ({
       tabIndex={-1}
       aria-current={isCurrent ? 'true' : undefined}
     >
-      <div className="episode-list-item__thumbnail">
-        <div className="episode-list-item__thumbnail-placeholder">
-          <i className="bx bx-play-circle" />
-        </div>
-      </div>
-
       <div className="episode-list-item__info">
         <div className="episode-list-item__header">
           <span className="episode-list-item__title">{episodeNumber}</span>

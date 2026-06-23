@@ -45,7 +45,7 @@ describe('EpisodeListItem', () => {
     expect(container.querySelector('.episode-list-item--current')).toBeTruthy();
   });
 
-  it('shows placeholder when no thumbnail', () => {
+  it('does not render thumbnail element', () => {
     const { container } = render(
       <FocusProvider>
         <EpisodeListItem
@@ -57,6 +57,6 @@ describe('EpisodeListItem', () => {
       </FocusProvider>
     );
 
-    expect(container.querySelector('.episode-list-item__thumbnail-placeholder')).toBeTruthy();
+    expect(container.querySelector('.episode-list-item__thumbnail')).toBeFalsy();
   });
 });
