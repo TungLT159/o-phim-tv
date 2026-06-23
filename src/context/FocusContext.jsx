@@ -395,7 +395,7 @@ export function FocusProvider({ children }) {
     dispatch({ type: 'CLEAR_TRAP' });
   }, []);
 
-  const focusCurrent = useCallback((scrollBehavior = 'smooth') => {
+  const focusCurrent = useCallback((scrollBehavior = 'smooth', retryCount = 0) => {
     const key = `${state.zone}-${state.row}-${state.col}`;
     const domRef = refMap.current.get(key);
     if (domRef && domRef.current) {
@@ -420,6 +420,8 @@ export function FocusProvider({ children }) {
         row: state.row,
         col: state.col,
       };
+    } else if (retryCount < 5) {
+      requestAnimationFrame(() => focusCurrent(scrollBehavior, retryCount + 1));
     }
   }, [state.zone, state.row, state.col]);
 
@@ -436,7 +438,7 @@ export function FocusProvider({ children }) {
   // Keyboard handler with acceleration
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target?.closest?.('.custom-video-player')) return;
+      if (state.activeTrap === null && e.target?.closest?.('.custom-video-player')) return;
 
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       
@@ -502,7 +504,7 @@ export function FocusProvider({ children }) {
         clearInterval(accelerationIntervalRef.current);
       }
     };
-  }, [state.accelerationState]);
+  }, [state.accelerationState, state.activeTrap]);
 
   const value = {
     state,

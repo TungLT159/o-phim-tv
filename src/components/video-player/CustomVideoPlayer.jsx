@@ -501,6 +501,7 @@ const CustomVideoPlayer = ({
       if (
         [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       ) {
+        if (sidebarOpen) return;
         event.preventDefault();
       }
 
@@ -515,6 +516,7 @@ const CustomVideoPlayer = ({
           break;
         }
         case "ArrowLeft":
+          if (sidebarOpen) break;
           if (isTimelineFocused) {
             startSeekAcceleration(-1);
           } else if (isInControls) {
@@ -523,6 +525,7 @@ const CustomVideoPlayer = ({
           revealControls();
           break;
         case "ArrowRight":
+          if (sidebarOpen) break;
           if (isTimelineFocused) {
             startSeekAcceleration(1);
           } else if (isInControls) {
@@ -531,6 +534,7 @@ const CustomVideoPlayer = ({
           revealControls();
           break;
         case "ArrowUp":
+          if (sidebarOpen) break;
           revealControls();
           if (isTimelineFocused) {
             focusElement(playerRef.current, ".custom-video-player__close-btn");
@@ -542,6 +546,7 @@ const CustomVideoPlayer = ({
           }
           break;
         case "ArrowDown":
+          if (sidebarOpen) break;
           revealControls();
           if (isTimelineFocused) {
             focusElement(playerRef.current, ".custom-video-player__control-btn--play");
