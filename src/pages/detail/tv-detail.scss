@@ -162,6 +162,7 @@
   // Episodes
   &__episodes {
     margin: 2.5rem 0;
+    padding: 0 $tv-padding-x;
   }
 
   &__section-title {
@@ -171,79 +172,4 @@
     margin: 0 0 $tv-gap-lg;
   }
 
-  &__season-select {
-    display: grid;
-    gap: $tv-gap-md;
-    margin-bottom: $tv-gap-lg;
-  }
-
-  &__season-label {
-    font-size: $tv-text-body;
-    color: $tv-text-secondary;
-  }
-
-  &__season-dropdown {
-    padding: 0.45rem 2rem 0.45rem 0.75rem;
-    font-size: $tv-text-body;
-    font-weight: $tv-weight-semibold;
-    background: rgba(255, 255, 255, 0.1);
-    color: $tv-text-primary;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    outline: none;
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.6rem center;
-
-    &:focus { border-color: $tv-focus-border-color; }
-
-    option {
-      background: $tv-surface;
-      color: $tv-text-primary;
-    }
-  }
-
-  &__season-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: $tv-gap-md;
-  }
-
-  &__season-btn {
-    padding: 0.75rem 1.5rem;
-    height: 48px;
-    border: 2px solid transparent;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: $tv-text-secondary;
-    font-size: $tv-text-card;
-    font-weight: $tv-weight-medium;
-    cursor: pointer;
-    transition: 
-      transform $tv-focus-transition,
-      border $tv-focus-transition,
-      box-shadow $tv-focus-transition,
-      background $tv-focus-transition;
-
-    &--active {
-      background: rgba(255, 255, 255, 0.2);
-      color: $tv-text-primary;
-    }
-
-    &--focused,
-    &:focus-visible {
-      border: $tv-focus-border;
-      box-shadow: $tv-focus-shadow;
-      transform: scale(1.1);
-    }
-  }
-
-  &__ep-list {
-    display: flex;
-    flex-direction: column;
-    gap: $tv-gap-sm;
-    margin-bottom: 3.5rem;
-  }
 }
