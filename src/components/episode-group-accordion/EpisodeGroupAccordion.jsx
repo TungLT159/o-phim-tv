@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusable } from '../../context/FocusContext';
 import './episode-group-accordion.scss';
 
 function AccordionHeader({ group, groupIndex, isOpen, onToggle, zone, row, col }) {
   const { ref, focused } = useFocusable(zone, row, col);
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onToggle();
     }
-  };
+  }, [onToggle]);
+
+  const episodes = group?.episodes ?? [];
+  const title = group?.title || 'Nhóm ' + (groupIndex + 1);
 
   return (
     <button
@@ -24,8 +27,8 @@ function AccordionHeader({ group, groupIndex, isOpen, onToggle, zone, row, col }
       <span className={`episode-accordion__chevron ${isOpen ? 'episode-accordion__chevron--open' : ''}`}>
         ▶
       </span>
-      <span className="episode-accordion__header-title">{group.title}</span>
-      <span className="episode-accordion__header-count">{group.episodes.length} tập</span>
+      <span className="episode-accordion__header-title">{title}</span>
+      <span className="episode-accordion__header-count">{episodes.length} tập</span>
     </button>
   );
 }
@@ -42,25 +45,27 @@ function EpisodeGroupAccordion({
   renderEpisode,
 }) {
   const [openGroups, setOpenGroups] = useState({});
+  const initialAutoOpenDone = useRef(false);
 
   const toggleGroup = useCallback((index) => {
     setOpenGroups((prev) => ({ ...prev, [index]: !prev[index] }));
   }, []);
 
   useEffect(() => {
-    if (!currentEpisode || !groups.length) return;
+    if (!currentEpisode || !groups.length || initialAutoOpenDone.current) return;
     const currentKey = currentEpisode.episodeKey || currentEpisode.slug || currentEpisode.name;
-    const groupIndex = groups.findIndex((group) =>
-      group.episodes.some((ep) => {
+    const groupIndex = groups.findIndex((group) => {
+      const episodes = group?.episodes ?? [];
+      return episodes.some((ep) => {
         const epKey = ep.episodeKey || ep.slug || ep.name;
         return epKey === currentKey;
-      })
-    );
-    if (groupIndex >= 0 && openGroups[groupIndex] === undefined) {
+      });
+    });
+    if (groupIndex >= 0) {
       setOpenGroups((prev) => ({ ...prev, [groupIndex]: true }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    initialAutoOpenDone.current = true;
+  }, [currentEpisode, groups]);
 
   if (!groups.length) return null;
 
@@ -73,12 +78,13 @@ function EpisodeGroupAccordion({
         rowCursor += 1;
 
         const isOpen = !!openGroups[groupIndex];
-        const episodeRows = isOpen ? Math.ceil(group.episodes.length / columns) : 0;
+        const episodes = group?.episodes ?? [];
+        const episodeRows = isOpen ? Math.ceil(episodes.length / columns) : 0;
         const contentStartRow = rowCursor;
         rowCursor += episodeRows;
 
         return (
-          <div key={group.title || groupIndex} className="episode-accordion__group">
+          <div key={group?.title || groupIndex} className="episode-accordion__group">
             <AccordionHeader
               group={group}
               groupIndex={groupIndex}
@@ -90,11 +96,17 @@ function EpisodeGroupAccordion({
             />
             <div className={`episode-accordion__content ${isOpen ? 'episode-accordion__content--open' : ''}`}>
               {isOpen && (
-                <div className="episode-accordion__ep-list">
-                  {group.episodes.map((ep, idx) => {
+                <div
+                  className="episode-accordion__ep-list"
+                  style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+                >
+                  {episodes.map((ep, idx) => {
                     const epRow = contentStartRow + Math.floor(idx / columns);
                     const epCol = idx % columns;
-                    return renderEpisode(ep, epRow, epCol);
+                    if (typeof renderEpisode === 'function') {
+                      return renderEpisode(ep, epRow, epCol);
+                    }
+                    return null;
                   })}
                 </div>
               )}
