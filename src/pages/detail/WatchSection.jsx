@@ -63,9 +63,15 @@ const WatchSection = ({
               showAutoPlayNotice={showAutoPlayNotice}
               autoPlayCountdown={autoPlayCountdown}
               autoPlayDuration={10}
+              autoPlayEnabled={autoPlayEnabled}
               onPrevEpisode={onPrevEpisode}
               onNextEpisode={onNextEpisode}
               onCancelAutoPlay={onCancelAutoPlay}
+              onToggleAutoPlay={onToggleAutoPlay}
+              episodes={episodeList}
+              episodeGroups={episodeGroups}
+              currentEpisode={currentEpisode}
+              onSelectEpisode={onSelectEpisode}
             />
           )}
         </div>

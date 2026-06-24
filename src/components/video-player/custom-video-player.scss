@@ -118,6 +118,14 @@
   i {
     font-size: 3rem;
   }
+
+  &:focus-visible {
+    outline: 4px solid #fff;
+    outline-offset: 6px;
+    box-shadow:
+      0 0 0 8px rgba(255, 61, 113, 0.45),
+      0 20px 55px rgba(255, 61, 113, 0.35);
+  }
 }
 
 .custom-video-player__seek-feedback {

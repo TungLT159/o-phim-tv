@@ -49,15 +49,23 @@
   }
 
   &__button {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     border: 2px solid transparent;
     cursor: pointer;
+    overflow: hidden;
     transition: 
       transform $tv-focus-transition,
       border $tv-focus-transition,
       box-shadow $tv-focus-transition;
+
+    > span:not(.autoplay-card__button-fill),
+    > i {
+      position: relative;
+      z-index: 1;
+    }
 
     &--play {
       flex: 1;
@@ -71,6 +79,18 @@
 
       // Pulse animation during countdown
       animation: pulse-border 2s infinite;
+    }
+
+    &-fill {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.35);
+      transform: scaleX(0);
+      transform-origin: left center;
+      animation: autoplay-fill var(--autoplay-duration, 10s) linear forwards;
+      pointer-events: none;
     }
 
     &--cancel {
@@ -105,5 +125,15 @@
   }
   50% {
     box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes autoplay-fill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
   }
 }

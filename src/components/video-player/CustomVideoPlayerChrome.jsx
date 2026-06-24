@@ -49,6 +49,7 @@ const CustomVideoPlayerChrome = ({
   episodeNavigation,
   playbackState,
   onSeek,
+  onSeekCommit,
   onTogglePlay,
   onSeekBackward,
   onPrevEpisode,
@@ -63,6 +64,7 @@ const CustomVideoPlayerChrome = ({
   onTimelineHover,
   onTimelineLeave,
   thumbnailPreview,
+  seekPreviewTime,
 }) => {
   const {
     showControls,
@@ -71,7 +73,8 @@ const CustomVideoPlayerChrome = ({
     duration,
     isPictureInPicture,
   } = playbackState;
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const displayTime = seekPreviewTime !== null && seekPreviewTime !== undefined ? seekPreviewTime : currentTime;
+  const displayPercent = duration > 0 ? (displayTime / duration) * 100 : 0;
   const canGoPrevEpisode = Boolean(episodeNavigation?.canGoPrevEpisode);
   const canGoNextEpisode = Boolean(episodeNavigation?.canGoNextEpisode);
   const hasEpisodeNavigation = Boolean(onPrevEpisode || onNextEpisode);
@@ -95,15 +98,22 @@ const CustomVideoPlayerChrome = ({
           time={thumbnailPreview?.time}
           position={thumbnailPreview?.position}
         />
-        <span>{formatVideoTime(currentTime)}</span>
+        <span>{formatVideoTime(displayTime)}</span>
         <input
           className="custom-video-player__progress"
           type="range"
           min="0"
           max={duration || 0}
           step="0.1"
-          value={currentTime}
+          value={displayTime}
           onChange={onSeek}
+          onMouseUp={onSeekCommit}
+          onTouchEnd={onSeekCommit}
+          onKeyUp={(e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") {
+              onSeekCommit?.(e);
+            }
+          }}
           onMouseMove={(e) => {
             if (!onTimelineHover) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -114,7 +124,7 @@ const CustomVideoPlayerChrome = ({
           onMouseLeave={onTimelineLeave}
           data-tv-focusable="true"
           aria-label="Tua video"
-          style={{ "--progress": `${progressPercent}%` }}
+          style={{ "--progress": `${displayPercent}%` }}
         />
         <span>{formatVideoTime(duration)}</span>
       </div>

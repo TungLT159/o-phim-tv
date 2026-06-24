@@ -361,8 +361,10 @@ const Detail = () => {
       }
 
       // Kiểm tra nếu video còn 25 giây cuối và chưa trigger
+      const remainingTime = duration - currentTime;
+      const watchedRatio = duration > 0 ? currentTime / duration : 0;
       if (
-        duration - currentTime <= 25 &&
+        (remainingTime <= 10 || watchedRatio >= 0.95) &&
         !hasTriggeredAutoPlay &&
         autoPlayEnabled
       ) {

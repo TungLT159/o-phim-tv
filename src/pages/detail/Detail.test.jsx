@@ -11,6 +11,7 @@ import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import Detail from "./Detail";
 import tmdbApi from "../../api/tmdbApi";
 import { clearAllEpisodeLinks } from "../../utils/episodeLinkManager";
+import { clearWatchHistory } from "../../utils/watchHistoryManager";
 
 const mockCustomVideoPlayer = jest.fn();
 
@@ -113,8 +114,9 @@ const setMediaProperty = (element, property, value) => {
   });
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   clearAllEpisodeLinks();
+  await clearWatchHistory();
   mockCustomVideoPlayer.mockClear();
   mockCustomVideoPlayer.mockImplementation(({ videoRef }) => (
     <video ref={videoRef} data-testid="video-player" />
@@ -125,6 +127,10 @@ beforeEach(() => {
   window.HTMLMediaElement.prototype.load = jest.fn();
   tmdbApi.detail.mockResolvedValue({ data: { item: movieDetail } });
   tmdbApi.episode.mockResolvedValue({ playlistUrl: "/video.m3u8" });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 test("reserves the detail layout while movie data is loading", () => {
@@ -199,9 +205,27 @@ test("passes episode navigation props to the custom video player", async () => {
       canGoNextEpisode: true,
       nextEpisodeName: "2",
       autoPlayDuration: 10,
+      autoPlayEnabled: true,
       onPrevEpisode: expect.any(Function),
       onNextEpisode: expect.any(Function),
       onCancelAutoPlay: expect.any(Function),
+      onToggleAutoPlay: expect.any(Function),
+    }),
+  );
+});
+
+test("custom video player auto-play toggle controls the existing setting", async () => {
+  renderDetail("/movie/test-movie?ep=0:tap-1");
+
+  await waitFor(() => expect(mockCustomVideoPlayer).toHaveBeenCalled());
+
+  act(() => {
+    mockCustomVideoPlayer.mock.calls.at(-1)[0].onToggleAutoPlay();
+  });
+
+  expect(mockCustomVideoPlayer.mock.calls.at(-1)[0]).toEqual(
+    expect.objectContaining({
+      autoPlayEnabled: false,
     }),
   );
 });
@@ -223,6 +247,44 @@ test("starts autoplay countdown when a long video reaches 95 percent watched", a
       }),
     ),
   );
+});
+
+test("advances to the next episode when the autoplay countdown finishes", async () => {
+  jest.useFakeTimers();
+  const { unmount } = renderDetail("/movie/test-movie?ep=0:tap-1");
+
+  const video = await screen.findByTestId("video-player");
+  setMediaProperty(video, "duration", 1200);
+  setMediaProperty(video, "currentTime", 1140);
+
+  fireEvent(video, new Event("timeupdate"));
+
+  await waitFor(() =>
+    expect(mockCustomVideoPlayer.mock.calls.at(-1)[0]).toEqual(
+      expect.objectContaining({
+        showAutoPlayNotice: true,
+        autoPlayCountdown: 10,
+      }),
+    ),
+  );
+
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+
+  await waitFor(() =>
+    expect(mockCustomVideoPlayer.mock.calls.at(-1)[0]).toEqual(
+      expect.objectContaining({
+        episodeName: "2",
+      }),
+    ),
+  );
+
+  setMediaProperty(video, "currentTime", 0);
+  setMediaProperty(video, "duration", 0);
+  unmount();
+  localStorage.clear();
+  jest.useRealTimers();
 });
 
 test("does not start autoplay countdown before the minimum 10-second window", async () => {

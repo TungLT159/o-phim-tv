@@ -46,6 +46,16 @@ export default function TvDetail() {
   } = useEpisodeCatalog(movie, epParam);
 
   const currentEp = currentEpisode;
+  const currentEpisodeIndex = useMemo(() => {
+    if (!currentEp || !episodeList.length) return -1;
+
+    return episodeList.findIndex((episode) => {
+      const episodeIdentity = episode.episodeKey || episode.slug || episode.name;
+      const currentIdentity = currentEp.episodeKey || currentEp.slug || currentEp.name;
+      return episodeIdentity === currentIdentity;
+    });
+  }, [currentEp, episodeList]);
+  const canGoNextEpisode = currentEpisodeIndex !== -1 && currentEpisodeIndex < episodeList.length - 1;
   const displayEpisodeGroups = useMemo(
     () => buildEpisodeDisplayGroups(allEpisodeGroups, 50),
     [allEpisodeGroups],
@@ -76,6 +86,10 @@ export default function TvDetail() {
     setPlaying(true);
     window.history.pushState({ playerOpen: true }, '');
   }, [selectEpisode]);
+  const handleNextEpisode = useCallback(() => {
+    if (!canGoNextEpisode) return;
+    selectEpisode(episodeList[currentEpisodeIndex + 1]);
+  }, [canGoNextEpisode, currentEpisodeIndex, episodeList, selectEpisode]);
   
   const handleClose = useCallback(() => setPlaying(false), []);
 
@@ -130,6 +144,9 @@ export default function TvDetail() {
             episodeGroups={displayEpisodeGroups}
             currentEpisode={currentEp}
             onSelectEpisode={selectEpisode}
+            canGoNextEpisode={canGoNextEpisode}
+            nextEpisodeName={canGoNextEpisode ? episodeList[currentEpisodeIndex + 1]?.name : undefined}
+            onNextEpisode={handleNextEpisode}
             autoPlayEnabled={autoPlayEnabled}
             onToggleAutoPlay={() => setAutoPlayEnabled((value) => !value)}
             onClose={handleClose}

@@ -2,6 +2,7 @@ import React from "react";
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import CustomVideoPlayer from "./CustomVideoPlayer";
+import { FocusProvider } from "../../context/FocusContext";
 
 jest.mock("../../utils/episodeLinkManager", () => ({
   getEpisodeLink: jest.fn(),
@@ -14,12 +15,21 @@ const originalInnerWidth = window.innerWidth;
 const originalInnerHeight = window.innerHeight;
 const originalRequestAnimationFrame = window.requestAnimationFrame;
 const originalCancelAnimationFrame = window.cancelAnimationFrame;
+const originalMediaPlay = HTMLMediaElement.prototype.play;
+const originalMediaPause = HTMLMediaElement.prototype.pause;
+const originalMediaLoad = HTMLMediaElement.prototype.load;
 const originalPictureInPictureEnabled = Object.getOwnPropertyDescriptor(
   document,
   "pictureInPictureEnabled",
 );
 const originalRequestPictureInPicture =
   HTMLVideoElement.prototype.requestPictureInPicture;
+
+beforeEach(() => {
+  HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
+  HTMLMediaElement.prototype.pause = jest.fn();
+  HTMLMediaElement.prototype.load = jest.fn();
+});
 
 afterEach(() => {
   jest.useRealTimers();
@@ -43,6 +53,9 @@ afterEach(() => {
   });
   window.requestAnimationFrame = originalRequestAnimationFrame;
   window.cancelAnimationFrame = originalCancelAnimationFrame;
+  HTMLMediaElement.prototype.play = originalMediaPlay;
+  HTMLMediaElement.prototype.pause = originalMediaPause;
+  HTMLMediaElement.prototype.load = originalMediaLoad;
   if (originalPictureInPictureEnabled) {
     Object.defineProperty(
       document,
@@ -132,6 +145,8 @@ const mockPictureInPictureSupport = ({
   }
 };
 
+const renderWithFocusProvider = (ui) => render(<FocusProvider>{ui}</FocusProvider>);
+
 const renderPlayer = () => {
   const videoRef = React.createRef();
   const view = render(
@@ -154,6 +169,7 @@ const renderPlayer = () => {
     setMediaProperty(video, "paused", true);
     fireEvent(video, new Event("pause"));
   });
+  video.load = jest.fn();
 
   fireEvent(video, new Event("loadedmetadata"));
 
@@ -217,7 +233,7 @@ const renderPlayerWithEpisodeDialog = (props = {}) => {
     onSelectEpisode: jest.fn(),
   };
   const playerProps = { ...defaultProps, ...props };
-  const view = render(
+  const view = renderWithFocusProvider(
     <CustomVideoPlayer
       videoRef={videoRef}
       title="Test Movie"
@@ -258,6 +274,29 @@ test("renders title, episode, and custom controls", () => {
   expect(container.querySelector(".custom-video-player__meta")).toHaveClass(
     "custom-video-player__meta--pass-through",
   );
+});
+
+test("stops and clears video playback on unmount", () => {
+  const videoRef = React.createRef();
+  const view = renderWithFocusProvider(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      episodeName="1"
+    />,
+  );
+  const video = view.container.querySelector("video");
+  const removeAttributeSpy = jest.spyOn(video, "removeAttribute");
+  video.pause = jest.fn();
+  video.load = jest.fn();
+  video.src = "https://example.com/episode.mp4";
+  setMediaProperty(video, "paused", false);
+
+  view.unmount();
+
+  expect(video.pause).toHaveBeenCalledTimes(1);
+  expect(removeAttributeSpy).toHaveBeenCalledWith("src");
+  expect(video.load).toHaveBeenCalledTimes(1);
 });
 
 test("renders custom episode navigation controls", () => {
@@ -375,6 +414,36 @@ test("closes the episode dialog with Escape", () => {
   fireEvent.keyDown(window, { key: "Escape" });
 
   expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+});
+
+test("episode dialog starts on episode 1 and cycles up to close then back down", () => {
+  renderPlayerWithEpisodeDialog({
+    currentEpisode: { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+  const closeButton = screen.getByRole("button", { name: "Đóng danh sách tập" });
+  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+
+  expect(episodeOne).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(closeButton).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(episodeOne).toHaveFocus();
+});
+
+test("remote Backspace closes only the episode dialog while player remains open", () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
 });
 
 test("keeps custom auto-next overlay on coarse pointer devices", () => {
@@ -634,8 +703,317 @@ test("updates video time when seeking", () => {
   const progress = screen.getByLabelText("Tua video");
 
   fireEvent.change(progress, { target: { value: "45" } });
+  expect(video.currentTime).toBe(0);
+
+  fireEvent.mouseUp(progress, { target: { value: "45" } });
 
   expect(video.currentTime).toBe(45);
+});
+
+test("keeps audio state while committing a timeline seek", () => {
+  const { video } = renderPlayer();
+  const progress = screen.getByLabelText("Tua video");
+  video.volume = 0.7;
+  video.muted = false;
+
+  fireEvent.change(progress, { target: { value: "45" } });
+  fireEvent.mouseUp(progress, { target: { value: "45" } });
+
+  expect(video.currentTime).toBe(45);
+  expect(video.volume).toBe(0.7);
+  expect(video.muted).toBe(false);
+});
+
+test("pauses playback while committing a timeline seek and resumes after seeked", () => {
+  const { video } = renderPlayer();
+  const progress = screen.getByLabelText("Tua video");
+  const events = [];
+  let currentTimeValue = 0;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      events.push(`seek:${value}`);
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "paused", false);
+  video.pause = jest.fn(() => {
+    events.push("pause");
+    setMediaProperty(video, "paused", true);
+  });
+  video.play = jest.fn(() => {
+    events.push("play");
+    setMediaProperty(video, "paused", false);
+    return Promise.resolve();
+  });
+
+  fireEvent.change(progress, { target: { value: "45" } });
+  fireEvent.mouseUp(progress, { target: { value: "45" } });
+
+  expect(events).toEqual(["pause", "seek:45"]);
+  expect(video.play).not.toHaveBeenCalled();
+
+  fireEvent(video, new Event("seeked"));
+
+  expect(video.play).toHaveBeenCalledTimes(1);
+  expect(events).toEqual(["pause", "seek:45", "play"]);
+});
+
+test("mutes audio while seeking during playback and restores it after seeked", () => {
+  const { video } = renderPlayer();
+  const progress = screen.getByLabelText("Tua video");
+  video.volume = 0.8;
+  video.muted = false;
+  setMediaProperty(video, "paused", false);
+
+  fireEvent.change(progress, { target: { value: "45" } });
+  fireEvent.mouseUp(progress, { target: { value: "45" } });
+
+  expect(video.muted).toBe(true);
+  expect(video.volume).toBe(0);
+
+  fireEvent(video, new Event("seeked"));
+
+  expect(video.muted).toBe(false);
+  expect(video.volume).toBe(0.8);
+});
+
+test("remote OK toggles playback when the center play button is focused", () => {
+  const { video } = renderPlayer();
+  const centerPlay = screen.getByLabelText("Phát video");
+  centerPlay.focus();
+
+  fireEvent.keyDown(window, { key: "Enter" });
+
+  expect(video.play).toHaveBeenCalledTimes(1);
+});
+
+test("remote arrows can focus the center play button before playback starts", () => {
+  const { video } = renderPlayer();
+  const progress = screen.getByLabelText("Tua video");
+  progress.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+
+  expect(screen.getByLabelText("Phát video")).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "Enter" });
+
+  expect(video.play).toHaveBeenCalledTimes(1);
+});
+
+test("resumes playback after remote seek when already playing", () => {
+  const { video } = renderPlayer();
+  const progress = screen.getByLabelText("Tua video");
+  let currentTimeValue = 30;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "paused", false);
+  video.pause = jest.fn(() => {
+    setMediaProperty(video, "paused", true);
+  });
+  video.play = jest.fn(() => {
+    setMediaProperty(video, "paused", false);
+    return Promise.resolve();
+  });
+  progress.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(video.pause).toHaveBeenCalledTimes(1);
+  expect(video.play).not.toHaveBeenCalled();
+
+  fireEvent(video, new Event("seeked"));
+
+  expect(video.play).toHaveBeenCalledTimes(1);
+});
+
+test("does not commit a stale remote seek after switching episodes", () => {
+  const videoRef = React.createRef();
+  const { container, rerender } = render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      episodeName="1"
+    />,
+  );
+  const video = container.querySelector("video");
+  setMediaProperty(video, "duration", 120);
+  setMediaProperty(video, "currentTime", 40);
+  setMediaProperty(video, "paused", true);
+  fireEvent(video, new Event("loadedmetadata"));
+  const progress = screen.getByLabelText("Tua video");
+  progress.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+
+  setMediaProperty(video, "currentTime", 0);
+  rerender(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      episodeName="2"
+    />,
+  );
+  fireEvent(video, new Event("loadedmetadata"));
+
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(video.currentTime).toBe(0);
+});
+
+test("plays the next episode when playback ends and autoplay is enabled", () => {
+  const onNextEpisode = jest.fn();
+  const { container } = renderPlayerWithEpisodeControls({
+    movieId: "test-movie",
+    episode: { name: "1", slug: "tap-1", link_embed: "https://example.com/video.mp4" },
+    autoPlayEnabled: true,
+    canGoNextEpisode: true,
+    onNextEpisode,
+  });
+  const video = container.querySelector("video");
+
+  fireEvent(video, new Event("ended"));
+
+  expect(onNextEpisode).toHaveBeenCalledTimes(1);
+});
+
+test("shows TV autoplay countdown near the end and focuses play now", () => {
+  jest.useFakeTimers();
+  const onNextEpisode = jest.fn();
+  const { container } = renderPlayerWithEpisodeControls({
+    movieId: "test-movie",
+    episode: { name: "1", slug: "tap-1", link_embed: "https://example.com/video.mp4" },
+    autoPlayEnabled: true,
+    canGoNextEpisode: true,
+    nextEpisodeName: "2",
+    onNextEpisode,
+  });
+  const video = container.querySelector("video");
+  setMediaProperty(video, "duration", 1200);
+  setMediaProperty(video, "currentTime", 1140);
+
+  fireEvent(video, new Event("timeupdate"));
+  act(() => {
+    jest.advanceTimersByTime(0);
+  });
+
+  expect(screen.getByText("Tiếp theo")).toBeInTheDocument();
+  expect(screen.getByText("Tập 2")).toBeInTheDocument();
+  expect(screen.getByText("Tự động phát sau 10 giây")).toBeInTheDocument();
+  expect(container.querySelector(".autoplay-card__button-fill")).toHaveStyle({
+    animationDuration: "10s",
+  });
+  expect(screen.getByLabelText("Phát tập tiếp theo ngay")).toHaveFocus();
+
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+
+  expect(onNextEpisode).toHaveBeenCalledTimes(1);
+});
+
+test("remote can move from TV autoplay play now to cancel", () => {
+  jest.useFakeTimers();
+  const onNextEpisode = jest.fn();
+  const { container } = renderPlayerWithEpisodeControls({
+    movieId: "test-movie",
+    episode: { name: "1", slug: "tap-1", link_embed: "https://example.com/video.mp4" },
+    autoPlayEnabled: true,
+    canGoNextEpisode: true,
+    nextEpisodeName: "2",
+    onNextEpisode,
+  });
+  const video = container.querySelector("video");
+  setMediaProperty(video, "duration", 1200);
+  setMediaProperty(video, "currentTime", 1140);
+
+  fireEvent(video, new Event("timeupdate"));
+  act(() => {
+    jest.advanceTimersByTime(0);
+  });
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(screen.getByLabelText("Hủy tự động phát")).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "Enter" });
+  expect(screen.queryByText("Tiếp theo")).not.toBeInTheDocument();
+
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+
+  expect(onNextEpisode).not.toHaveBeenCalled();
+});
+
+test("TV focus provider does not steal autoplay card arrow navigation", () => {
+  jest.useFakeTimers();
+  const onNextEpisode = jest.fn();
+  const videoRef = React.createRef();
+  const view = renderWithFocusProvider(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      episodeName="1"
+      movieId="test-movie"
+      episode={{ name: "1", slug: "tap-1", link_embed: "https://example.com/video.mp4" }}
+      autoPlayEnabled
+      canGoNextEpisode
+      nextEpisodeName="2"
+      onNextEpisode={onNextEpisode}
+    />,
+  );
+  const video = view.container.querySelector("video");
+  setMediaProperty(video, "duration", 1200);
+  setMediaProperty(video, "currentTime", 1140);
+
+  fireEvent(video, new Event("timeupdate"));
+  act(() => {
+    jest.advanceTimersByTime(0);
+  });
+
+  const playNow = screen.getByLabelText("Phát tập tiếp theo ngay");
+  const cancel = screen.getByLabelText("Hủy tự động phát");
+
+  expect(playNow).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowRight" });
+  expect(cancel).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowUp" });
+  expect(playNow).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(cancel).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowLeft" });
+  expect(playNow).toHaveFocus();
+});
+
+test("remote arrows reveal hidden controls and focus the first control", () => {
+  jest.useFakeTimers();
+  const { container, video } = renderPlayer();
+
+  act(() => {
+    video.play();
+  });
+  act(() => {
+    jest.advanceTimersByTime(2500);
+  });
+  expect(container.querySelector(".custom-video-player")).toHaveClass("is-idle");
+
+  document.body.focus();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+
+  expect(container.querySelector(".custom-video-player")).toHaveClass("is-active");
+  expect(screen.getAllByLabelText("Tạm dừng")[1]).toHaveFocus();
 });
 
 test("coalesces frequent video time updates into one animation frame", () => {
@@ -694,6 +1072,15 @@ test("remote arrows move focus across custom controls instead of seeking immedia
 
   fireEvent.keyDown(window, { key: "M" });
   expect(video.muted).toBe(true);
+});
+
+test("fullscreen player prevents remote arrows from scrolling the page when focus is outside controls", () => {
+  renderPlayer();
+  document.body.focus();
+
+  const eventWasNotCancelled = fireEvent.keyDown(window, { key: "ArrowDown" });
+
+  expect(eventWasNotCancelled).toBe(false);
 });
 
 test("remote arrows move focus inside the episode dialog", () => {

@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback } from 'react';
-import { useFocusable, useFocus } from '../../../context/FocusContext';
+import React, { useEffect, useCallback, useRef } from 'react';
+import { useFocusable, useOptionalFocus } from '../../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../../utils/episodeDisplayName';
 import EpisodeGroupAccordion from '../../episode-group-accordion/EpisodeGroupAccordion';
 import './episode-sidebar.scss';
@@ -21,6 +21,7 @@ function EpisodeSidebarItem({ episode, row, isCurrent, onClick }) {
       onClick={onClick}
       onKeyDown={handleKeyDown}
       type="button"
+      data-focus-row={row}
       aria-current={isCurrent ? 'true' : undefined}
     >
       <div className="episode-sidebar__item-info">
@@ -40,7 +41,10 @@ const EpisodeSidebar = ({
   onClose,
   onSelectEpisode,
 }) => {
-  const { setTrap, clearTrap } = useFocus();
+  const focus = useOptionalFocus();
+  const setTrap = focus?.setTrap;
+  const clearTrap = focus?.clearTrap;
+  const trapWasActiveRef = useRef(false);
   const { ref: closeRef, focused: closeFocused } = useFocusable(3, 0, 0);
 
   const handleSelect = useCallback((ep) => {
@@ -48,19 +52,10 @@ const EpisodeSidebar = ({
     onClose();
   }, [onSelectEpisode, onClose]);
 
-  useEffect(() => {
-    if (isOpen) {
-      setTrap(3);
-      const timer = setTimeout(() => {
-        if (closeRef.current) {
-          closeRef.current.focus();
-        }
-      }, 0);
-      return () => clearTimeout(timer);
-    } else {
-      clearTrap();
-    }
-  }, [isOpen, setTrap, clearTrap, closeRef]);
+  const currentEpisodeKey = currentEpisode?.episodeKey || currentEpisode?.slug || currentEpisode?.name;
+  const hasGroups = episodeGroups.length > 1;
+
+  const firstFocusableRow = 1;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -77,10 +72,33 @@ const EpisodeSidebar = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) {
+      if (trapWasActiveRef.current) {
+        clearTrap?.();
+        trapWasActiveRef.current = false;
+      }
+      return undefined;
+    }
 
-  const currentEpisodeKey = currentEpisode?.episodeKey || currentEpisode?.slug || currentEpisode?.name;
-  const hasGroups = episodeGroups.length > 1;
+    setTrap?.(3, firstFocusableRow, 0);
+    trapWasActiveRef.current = true;
+
+    const focusFirstEpisode = () => {
+      const firstEpisode = document.querySelector('.episode-sidebar__item');
+      if (firstEpisode) {
+        firstEpisode.focus();
+      } else if (closeRef.current) {
+        closeRef.current.focus();
+      }
+    };
+
+    focusFirstEpisode();
+    const frameId = requestAnimationFrame(focusFirstEpisode);
+    return () => cancelAnimationFrame(frameId);
+  }, [isOpen, firstFocusableRow, setTrap, clearTrap, closeRef]);
+
+  if (!isOpen) return null;
 
   const renderSidebarEpisode = (ep, row, col) => {
     const episodeKey = ep.episodeKey || ep.slug || ep.name;

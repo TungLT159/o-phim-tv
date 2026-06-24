@@ -8,6 +8,7 @@ function AccordionHeader({ group, groupIndex, isOpen, onToggle, zone, row, col }
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      e.stopPropagation();
       onToggle();
     }
   }, [onToggle]);
@@ -48,7 +49,13 @@ function EpisodeGroupAccordion({
   const initialAutoOpenDone = useRef(false);
 
   const toggleGroup = useCallback((index) => {
-    setOpenGroups((prev) => ({ ...prev, [index]: !prev[index] }));
+    setOpenGroups((prev) => {
+      const isCurrentlyOpen = !!prev[index];
+      if (isCurrentlyOpen) {
+        return {};
+      }
+      return { [index]: true };
+    });
   }, []);
 
   useEffect(() => {
