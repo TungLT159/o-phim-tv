@@ -109,6 +109,11 @@ function reducer(state, action) {
 
       // If focus trapped, only allow navigation within trapped zone
       if (activeTrap !== null && zone === activeTrap) {
+        const spatialTarget = findSpatialTarget(grid, zone, row, col, direction);
+        if (spatialTarget) {
+          return { ...state, row: spatialTarget.row, col: spatialTarget.col };
+        }
+
         const trapGrid = grid[activeTrap];
         let newRow = row;
         let newCol = col;
@@ -150,6 +155,19 @@ function reducer(state, action) {
       let newZone = zone;
       let newRow = row;
       let newCol = col;
+
+      const spatialTarget = findSpatialTarget(grid, zone, row, col, direction);
+      if (spatialTarget) {
+        newRow = spatialTarget.row;
+        newCol = spatialTarget.col;
+
+        const nextMemory = { ...rowMemory };
+        if (newRow !== row) {
+          nextMemory[`${zone}-${row}`] = col;
+        }
+
+        return { ...state, row: newRow, col: newCol, rowMemory: nextMemory };
+      }
 
       if (direction === 'ArrowRight') {
         const cols = Object.keys(grid[zone]?.[row] || {}).map(Number).sort((a,b) => a-b);
@@ -225,10 +243,13 @@ function reducer(state, action) {
       return { ...state, zone: saved.zone, row: saved.row, col: saved.col };
     }
     case 'SET_TRAP': {
-      const { zone: trapZone } = action;
+      const { zone: trapZone, row: trapRow = 0, col: trapCol = 0 } = action;
       return {
         ...state,
         activeTrap: trapZone,
+        zone: trapZone,
+        row: trapRow,
+        col: trapCol,
         savedFocus: { zone: state.zone, row: state.row, col: state.col },
       };
     }
@@ -362,6 +383,100 @@ function findPrevRow(zoneGrid, currentRow, stepMultiplier = 1) {
   return rows[targetIndex];
 }
 
+function isFocusableRef(ref) {
+  const element = ref?.current;
+  return Boolean(
+    element &&
+    !element.hasAttribute?.('disabled') &&
+    element.getAttribute?.('aria-hidden') !== 'true'
+  );
+}
+
+function getUsableRect(ref) {
+  const rect = ref?.current?.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+  return rect;
+}
+
+function getZoneEntries(zoneGrid) {
+  if (!zoneGrid) return [];
+  return Object.entries(zoneGrid).flatMap(([rowKey, cols]) =>
+    Object.entries(cols || {}).map(([colKey, ref]) => ({
+      row: Number(rowKey),
+      col: Number(colKey),
+      ref,
+      rect: getUsableRect(ref),
+    }))
+  ).filter((entry) => isFocusableRef(entry.ref));
+}
+
+function findFirstPosition(grid, preferredZone) {
+  const zones = [preferredZone, ...Object.keys(grid || {}).map(Number).filter((zone) => zone !== preferredZone)];
+  for (const zone of zones) {
+    const entries = getZoneEntries(grid?.[zone]).sort((a, b) => a.row - b.row || a.col - b.col);
+    if (entries.length) {
+      return { zone, row: entries[0].row, col: entries[0].col };
+    }
+  }
+  return null;
+}
+
+function getCenter(rect) {
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  };
+}
+
+function isSameVisualRow(currentRect, candidateRect) {
+  if (!currentRect || !candidateRect) return false;
+  const overlap = Math.min(currentRect.bottom, candidateRect.bottom) - Math.max(currentRect.top, candidateRect.top);
+  const minHeight = Math.min(currentRect.height, candidateRect.height);
+  if (overlap > minHeight * 0.5) return true;
+
+  const currentCenter = getCenter(currentRect);
+  const candidateCenter = getCenter(candidateRect);
+  return Math.abs(candidateCenter.y - currentCenter.y) <= minHeight * 0.6;
+}
+
+function findSpatialTarget(grid, zone, row, col, direction) {
+  const currentRef = grid?.[zone]?.[row]?.[col];
+  const currentRect = getUsableRect(currentRef);
+  if (!currentRect) return null;
+
+  const currentCenter = getCenter(currentRect);
+  const candidates = getZoneEntries(grid?.[zone])
+    .filter((entry) => entry.rect && (entry.row !== row || entry.col !== col))
+    .map((entry) => {
+      const center = getCenter(entry.rect);
+      const dx = center.x - currentCenter.x;
+      const dy = center.y - currentCenter.y;
+      return { ...entry, center, dx, dy };
+    })
+    .filter((entry) => {
+      if (direction === 'ArrowDown') return entry.dy > 1;
+      if (direction === 'ArrowUp') return entry.dy < -1;
+      if (direction === 'ArrowRight') return entry.dx > 1;
+      if (direction === 'ArrowLeft') return entry.dx < -1;
+      return false;
+    })
+    .sort((a, b) => {
+      const aPrimary = direction === 'ArrowDown' || direction === 'ArrowUp' ? Math.abs(a.dy) : Math.abs(a.dx);
+      const bPrimary = direction === 'ArrowDown' || direction === 'ArrowUp' ? Math.abs(b.dy) : Math.abs(b.dx);
+      const aSecondary = direction === 'ArrowDown' || direction === 'ArrowUp' ? Math.abs(a.dx) : Math.abs(a.dy);
+      const bSecondary = direction === 'ArrowDown' || direction === 'ArrowUp' ? Math.abs(b.dx) : Math.abs(b.dy);
+      return aPrimary - bPrimary || aSecondary - bSecondary || a.row - b.row || a.col - b.col;
+    });
+
+  if (!candidates.length) return null;
+  if (direction === 'ArrowLeft' || direction === 'ArrowRight') {
+    const sameRowCandidate = candidates.find((entry) => isSameVisualRow(currentRect, entry.rect));
+    if (sameRowCandidate) return { row: sameRowCandidate.row, col: sameRowCandidate.col };
+    return null;
+  }
+  return { row: candidates[0].row, col: candidates[0].col };
+}
+
 export function FocusProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const refMap = useRef(new Map());
@@ -387,15 +502,32 @@ export function FocusProvider({ children }) {
     dispatch({ type: 'RESTORE_FOCUS' });
   }, []);
 
-  const setTrap = useCallback((trapZone) => {
-    dispatch({ type: 'SET_TRAP', zone: trapZone });
+  const setTrap = useCallback((trapZone, row = 0, col = 0) => {
+    dispatch({ type: 'SET_TRAP', zone: trapZone, row, col });
   }, []);
 
   const clearTrap = useCallback(() => {
     dispatch({ type: 'CLEAR_TRAP' });
   }, []);
 
+  const skipToZone = useCallback((targetZone, targetRow, targetCol, restoreLastFocus = false) => {
+    dispatch({ type: 'SKIP_TO_ZONE', targetZone, targetRow, targetCol, restoreLastFocus });
+  }, []);
+
   const focusCurrent = useCallback((scrollBehavior = 'smooth', retryCount = 0) => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement !== document.body &&
+      (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      )
+    ) {
+      return;
+    }
+
     const key = `${state.zone}-${state.row}-${state.col}`;
     const domRef = refMap.current.get(key);
     if (domRef && domRef.current) {
@@ -420,10 +552,23 @@ export function FocusProvider({ children }) {
         row: state.row,
         col: state.col,
       };
-    } else if (retryCount < 5) {
+    } else {
+      const fallback = findFirstPosition(state.grid, state.zone);
+      if (fallback && retryCount === 0) {
+        dispatch({
+          type: 'SKIP_TO_ZONE',
+          targetZone: fallback.zone,
+          targetRow: fallback.row,
+          targetCol: fallback.col,
+        });
+        return;
+      }
+
+      if (retryCount < 5) {
       requestAnimationFrame(() => focusCurrent(scrollBehavior, retryCount + 1));
+      }
     }
-  }, [state.zone, state.row, state.col]);
+  }, [state.grid, state.zone, state.row, state.col]);
 
   // Focus element when state changes
   useEffect(() => {
@@ -514,6 +659,7 @@ export function FocusProvider({ children }) {
     restoreFocus,
     setTrap,
     clearTrap,
+    skipToZone,
   };
 
   return React.createElement(FocusContext.Provider, { value }, children);
@@ -525,16 +671,22 @@ export function useFocus() {
   return ctx;
 }
 
+export function useOptionalFocus() {
+  return useContext(FocusContext);
+}
+
 export function useFocusable(zone, row, col) {
-  const { register, unregister, state } = useFocus();
   const ref = useRef(null);
+  const ctx = useOptionalFocus();
+  const { register, unregister, state } = ctx || {};
 
   useEffect(() => {
+    if (!register || !unregister) return undefined;
     register(zone, row, col, ref);
     return () => unregister(zone, row, col);
   }, [zone, row, col, register, unregister]);
 
-  const focused = state.zone === zone && state.row === row && state.col === col;
+  const focused = state?.zone === zone && state?.row === row && state?.col === col;
 
-  return { ref, focused, zone: state.zone, row: state.row, col: state.col };
+  return { ref, focused, zone: state?.zone, row: state?.row, col: state?.col };
 }
