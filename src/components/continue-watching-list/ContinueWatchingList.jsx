@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Autoplay, Navigation } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 
+import { useFocusable } from "../../context/FocusContext";
 import { formatEpisodeDisplayName } from "../../utils/episodeDisplayName";
 import {
   getRecentInProgressMovies,
@@ -63,7 +64,74 @@ const SkeletonCards = () => (
   </div>
 );
 
-const ContinueWatchingList = ({ showSkeleton = false }) => {
+const ContinueWatchingCardContent = ({
+  cardRef,
+  clampedPercentage,
+  episodeDisplayText,
+  isFocused = false,
+  isMenuOpen,
+  item,
+  onCardClick,
+  onContextMenu,
+  onTouchCancel,
+  onTouchEnd,
+  onTouchMove,
+  onTouchStart,
+  percentage,
+  poster,
+  resumeUrl,
+  title,
+}) => (
+  <Link
+    ref={cardRef}
+    className={`continue-watching-list__card${
+      isMenuOpen ? " continue-watching-list__card--menu-open" : ""
+    }${isFocused ? " continue-watching-list__card--focused" : ""}`}
+    to={resumeUrl}
+    onClick={onCardClick}
+    onContextMenu={(event) => onContextMenu(event, item)}
+    onTouchStart={(event) => onTouchStart(event, item)}
+    onTouchEnd={onTouchEnd}
+    onTouchMove={onTouchMove}
+    onTouchCancel={onTouchCancel}
+  >
+    <div className="continue-watching-list__poster">
+      <img src={poster} alt="" loading="lazy" />
+      <div className="continue-watching-list__progress-bar">
+        <span style={{ width: `${clampedPercentage}%` }} />
+      </div>
+    </div>
+    <div className="continue-watching-list__meta">
+      <h3 className="continue-watching-list__title">{title}</h3>
+      {episodeDisplayText ? (
+        <p className="continue-watching-list__episode-text">
+          Tập đang xem: {episodeDisplayText}
+        </p>
+      ) : null}
+      <p className="continue-watching-list__progress-text">Đã xem {percentage}%</p>
+    </div>
+  </Link>
+);
+
+const FocusableContinueWatchingCard = ({ index, row, zone, ...props }) => {
+  const { ref, focused } = useFocusable(zone, row, index);
+
+  useEffect(() => {
+    if (!focused) {
+      return;
+    }
+
+    ref.current?.scrollIntoView?.({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [focused, ref]);
+
+  return <ContinueWatchingCardContent {...props} cardRef={ref} isFocused={focused} />;
+};
+
+const ContinueWatchingList = ({ showSkeleton = false, tvFocusable = false, row = 0, zone = 1 }) => {
   const [items, setItems] = useState(() => getRecentInProgressMoviesSnapshot(10));
   const [hasLoaded, setHasLoaded] = useState(false);
   const [menuState, setMenuState] = useState(null);
@@ -214,66 +282,58 @@ const ContinueWatchingList = ({ showSkeleton = false }) => {
           <SkeletonCards />
         ) : (
           <Swiper
-          modules={[Navigation, Autoplay]}
-          className="continue-watching-list__carousel"
-          data-testid="continue-watching-carousel"
-          grabCursor={true}
-          spaceBetween={12}
-          slidesPerView="auto"
-          autoplay={{ delay: 4000 }}
-          onSwiper={(swiper) => {
-            swiperRef.current = swiper;
-          }}
-          navigation={{
-            nextEl: ".continue-watching-list__button-next",
-            prevEl: ".continue-watching-list__button-prev",
-          }}
+            modules={[Navigation, Autoplay]}
+            className="continue-watching-list__carousel"
+            data-testid="continue-watching-carousel"
+            grabCursor={true}
+            spaceBetween={12}
+            slidesPerView="auto"
+            autoplay={{ delay: 4000 }}
+            onSwiper={(swiper) => {
+              swiperRef.current = swiper;
+            }}
+            navigation={{
+              nextEl: ".continue-watching-list__button-next",
+              prevEl: ".continue-watching-list__button-prev",
+            }}
           >
-            {items.map((item) => {
-            const movieInfo = item.movieInfo || {};
-            const slug = movieInfo.slug || item.movieId;
-            const title = movieInfo.title || item.movieId;
-            const poster = movieInfo.poster || FALLBACK_POSTER;
-            const percentage = Math.round(getItemPercentage(item));
-            const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
-            const resumeUrl = `/movie/${slug}?ep=${encodeURIComponent(item.episodeName || "")}`;
-            const episodeDisplayText = getEpisodeDisplayText(item.episodeName);
+            {items.map((item, index) => {
+              const movieInfo = item.movieInfo || {};
+              const slug = movieInfo.slug || item.movieId;
+              const title = movieInfo.title || item.movieId;
+              const poster = movieInfo.poster || FALLBACK_POSTER;
+              const percentage = Math.round(getItemPercentage(item));
+              const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
+              const resumeUrl = `/movie/${slug}?ep=${encodeURIComponent(item.episodeName || "")}`;
+              const episodeDisplayText = getEpisodeDisplayText(item.episodeName);
+              const CardComponent = tvFocusable
+                ? FocusableContinueWatchingCard
+                : ContinueWatchingCardContent;
+              const isMenuOpen = Boolean(
+                menuState?.item && getWatchItemKey(menuState.item) === getWatchItemKey(item),
+              );
 
               return (
                 <SwiperSlide key={`${item.movieId}-${item.episodeName}`}>
-                  <Link
-                  className={`continue-watching-list__card${
-                    menuState?.item &&
-                    getWatchItemKey(menuState.item) === getWatchItemKey(item)
-                      ? " continue-watching-list__card--menu-open"
-                      : ""
-                  }`}
-                  to={resumeUrl}
-                  onClick={handleCardClick}
-                  onContextMenu={(event) => openMenu(event, item)}
-                  onTouchStart={(event) => handleTouchStart(event, item)}
-                  onTouchEnd={cancelLongPress}
-                  onTouchMove={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
-                  >
-                    <div className="continue-watching-list__poster">
-                      <img src={poster} alt="" loading="lazy" />
-                      <div className="continue-watching-list__progress-bar">
-                        <span style={{ width: `${clampedPercentage}%` }} />
-                      </div>
-                    </div>
-                    <div className="continue-watching-list__meta">
-                      <h3 className="continue-watching-list__title">{title}</h3>
-                      {episodeDisplayText ? (
-                        <p className="continue-watching-list__episode-text">
-                          Tập đang xem: {episodeDisplayText}
-                        </p>
-                      ) : null}
-                      <p className="continue-watching-list__progress-text">
-                        Đã xem {percentage}%
-                      </p>
-                    </div>
-                  </Link>
+                  <CardComponent
+                    clampedPercentage={clampedPercentage}
+                    episodeDisplayText={episodeDisplayText}
+                    index={index}
+                    isMenuOpen={isMenuOpen}
+                    item={item}
+                    onCardClick={handleCardClick}
+                    onContextMenu={openMenu}
+                    onTouchCancel={cancelLongPress}
+                    onTouchEnd={cancelLongPress}
+                    onTouchMove={cancelLongPress}
+                    onTouchStart={handleTouchStart}
+                    percentage={percentage}
+                    poster={poster}
+                    resumeUrl={resumeUrl}
+                    row={row}
+                    title={title}
+                    zone={zone}
+                  />
                 </SwiperSlide>
               );
             })}

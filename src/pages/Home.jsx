@@ -82,7 +82,7 @@ function TvHome() {
 
       <TvHero items={heroMovies} />
 
-      <ContinueWatchingList />
+      <ContinueWatchingList tvFocusable row={0} />
 
       {TV_ROWS.map((row, idx) => (
         <ContentRow key={row.type} title={row.title} items={rows[row.type] || []} rowId={row.type} row={idx + 1} />

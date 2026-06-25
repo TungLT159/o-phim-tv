@@ -129,7 +129,8 @@
     }
   }
 
-  &__card--menu-open {
+  &__card--menu-open,
+  &__card--focused {
     transform: translateY(-12px) scale(1.03);
     z-index: 100;
 

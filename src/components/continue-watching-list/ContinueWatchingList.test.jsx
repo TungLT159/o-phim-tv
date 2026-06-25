@@ -10,6 +10,14 @@ import {
   getRecentInProgressMoviesSnapshot,
   removeWatchProgress,
 } from "../../utils/watchHistoryManager";
+import { useFocusable } from "../../context/FocusContext";
+
+jest.mock("../../context/FocusContext", () => ({
+  useFocusable: jest.fn(() => ({
+    ref: { current: null },
+    focused: false,
+  })),
+}));
 
 jest.mock("../../utils/watchHistoryManager", () => ({
   getRecentInProgressMovies: jest.fn(),
@@ -87,6 +95,13 @@ const renderContinueWatchingList = () =>
     </MemoryRouter>,
   );
 
+const renderTvContinueWatchingList = () =>
+  render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ContinueWatchingList tvFocusable row={0} />
+    </MemoryRouter>,
+  );
+
 const renderContinueWatchingSkeleton = () =>
   render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -153,6 +168,9 @@ beforeEach(() => {
   };
   mockRecentInProgressMovies = [];
   mockRecentInProgressMoviesSnapshot = [];
+  mockedGetRecentInProgressMovies.mockClear();
+  mockedGetRecentInProgressMoviesSnapshot.mockClear();
+  mockedRemoveWatchProgress.mockClear();
   mockedGetRecentInProgressMovies.mockImplementation(() => new Promise(() => {}));
   mockedGetRecentInProgressMoviesSnapshot.mockImplementation(() =>
     cloneItems(mockRecentInProgressMoviesSnapshot),
@@ -167,6 +185,11 @@ beforeEach(() => {
     return Promise.resolve();
   });
   localStorage.clear();
+  useFocusable.mockClear();
+  useFocusable.mockImplementation(() => ({
+    ref: { current: null },
+    focused: false,
+  }));
 });
 
 test("renders nothing when there is no in-progress history", async () => {
@@ -306,6 +329,75 @@ test("renders a continue watching card linked to the resume episode", () => {
   expect(
     document.querySelector(".continue-watching-list__button-next .bx-chevron-right"),
   ).toBeInTheDocument();
+});
+
+test("does not register TV focus targets during default rendering", () => {
+  seedHistory([
+    makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
+    makeHistoryItem({ movieId: "movie-2", title: "Second Movie" }),
+  ]);
+
+  renderContinueWatchingList();
+
+  expect(useFocusable).not.toHaveBeenCalled();
+});
+
+test("registers continue watching cards as TV focus targets when enabled", () => {
+  seedHistory([
+    makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
+    makeHistoryItem({ movieId: "movie-2", title: "Second Movie" }),
+  ]);
+
+  renderTvContinueWatchingList();
+
+  expect(useFocusable).toHaveBeenCalledTimes(2);
+  expect(useFocusable).toHaveBeenCalledWith(1, 0, 0);
+  expect(useFocusable).toHaveBeenCalledWith(1, 0, 1);
+});
+
+test("marks the focused TV continue watching card", () => {
+  useFocusable.mockImplementation((zone, row, col) => ({
+    ref: { current: null },
+    focused: zone === 1 && row === 0 && col === 1,
+  }));
+  seedHistory([
+    makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
+    makeHistoryItem({ movieId: "movie-2", title: "Second Movie" }),
+  ]);
+
+  renderTvContinueWatchingList();
+
+  expect(screen.getByRole("link", { name: /First Movie/i })).not.toHaveClass(
+    "continue-watching-list__card--focused",
+  );
+  expect(screen.getByRole("link", { name: /Second Movie/i })).toHaveClass(
+    "continue-watching-list__card--focused",
+  );
+});
+
+test("scrolls the focused TV continue watching card into view", () => {
+  const scrollIntoView = jest.fn();
+  const focusedCardRef = {};
+  Object.defineProperty(focusedCardRef, "current", {
+    get: () => ({ scrollIntoView }),
+    set: () => {},
+  });
+  useFocusable.mockImplementation((zone, row, col) => ({
+    ref: zone === 1 && row === 0 && col === 1 ? focusedCardRef : { current: null },
+    focused: zone === 1 && row === 0 && col === 1,
+  }));
+  seedHistory([
+    makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
+    makeHistoryItem({ movieId: "movie-2", title: "Second Movie" }),
+  ]);
+
+  renderTvContinueWatchingList();
+
+  expect(scrollIntoView).toHaveBeenCalledWith({
+    behavior: "smooth",
+    block: "nearest",
+    inline: "center",
+  });
 });
 
 test("renders stored progress that only has current time and duration", () => {
