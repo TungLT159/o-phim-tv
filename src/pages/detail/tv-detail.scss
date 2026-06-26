@@ -130,7 +130,7 @@
     &--focused {
       border: $tv-focus-border;
       transform: scale(1.1);
-      box-shadow: $tv-focus-shadow;
+      box-shadow: 0 0 0 3px #000, 0 0 0 8px #fff, $tv-focus-shadow;
     }
   }
 
