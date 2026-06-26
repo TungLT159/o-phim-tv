@@ -1,5 +1,5 @@
 {
-  "productName": "O Phim",
+  "productName": "Ổ Phim",
   "version": "0.4.5",
   "identifier": "com.ophim.tv",
   "build": {
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "O Phim",
+        "title": "Ổ Phim",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,

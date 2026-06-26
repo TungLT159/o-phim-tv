@@ -171,44 +171,26 @@
 
 /* ================= TV FOCUS INDICATORS ================= */
 
-// Global focus ring for TV remote
-*:focus-visible {
-  outline: 4px solid #ff6b35 !important;
-  outline-offset: 4px;
-  border-radius: 8px;
-  transition: outline 0.1s ease, transform 0.2s ease;
-}
-
 // Enhanced focus for cards and interactive elements
 @include tv {
   // Content row card focus on TV
   .content-row__card:focus-visible {
     transform: scale(1.12) !important;
     z-index: 10;
-
-    .content-row__focus-ring {
-      opacity: 1;
-    }
-
-    .content-row__poster {
-      box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.6), 0 12px 32px rgba(0, 0, 0, 0.6);
-    }
+    box-shadow: 0 0 0 4px #fff, 0 12px 32px rgba(0, 0, 0, 0.6);
   }
 
   // TV Hero focus
   .tv-hero:focus-visible {
-    .tv-hero__play-btn {
-      box-shadow: 0 0 0 4px #ff6b35, 0 0 32px rgba(255, 107, 53, 0.4);
-      transform: scale(1.08);
-      background: $main-color;
-    }
+    outline: 4px solid #fff;
+    outline-offset: -4px;
   }
 
   // Card focus on TV - show overlay like hover does on desktop (for legacy movie-card)
   .movie-card:focus-visible {
     transform: translateY(-8px) scale(1.03);
     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),
-                0 0 0 4px rgba(255, 107, 53, 0.6);
+                0 0 0 4px #fff;
 
     &::before {
       opacity: 1;
@@ -242,7 +224,7 @@
       transform: translateY(-50%);
       width: 4px;
       height: 28px;
-      background: #ff6b35;
+      background: #fff;
       border-radius: 0 3px 3px 0;
     }
   }
@@ -255,16 +237,9 @@
   }
 
   .tv-sidebar__logo a:focus-visible {
-    outline: 3px solid #ff6b35 !important;
+    outline: 3px solid #fff !important;
     outline-offset: 4px;
     border-radius: 8px;
-  }
-
-  // Button focus
-  button:focus-visible,
-  .btn:focus-visible {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
   }
 
   // Episode item focus
@@ -277,21 +252,15 @@
   // Link focus
   a:focus-visible {
     .movie-card__title {
-      color: #ff6b35;
+      color: #fff;
     }
-  }
-
-  // Search input focus
-  input:focus-visible {
-    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.4);
-    border-color: #ff6b35;
   }
 
   // Swiper navigation focus
   .swiper-button-prev:focus-visible,
   .swiper-button-next:focus-visible {
     transform: scale(1.15);
-    box-shadow: 0 0 24px rgba(255, 107, 53, 0.6);
+    box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
   }
 
   // Remove hover-only overlays on TV (use focus instead)
@@ -324,7 +293,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 107, 53, 0.5);
+    background: rgba(255, 255, 255, 0.5);
     border-radius: 6px;
   }
 }

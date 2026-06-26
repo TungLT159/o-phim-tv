@@ -18,7 +18,8 @@
   }
 
   &:focus-visible {
-    outline: none;
+    outline: 4px solid $tv-focus-border-color;
+    outline-offset: -4px;
   }
 
   &__slide {
@@ -143,20 +144,11 @@
       font-size: 1.5rem;
     }
 
-    &:focus-visible,
     &--focused {
       outline: none;
-      border: $tv-focus-border;
       transform: scale($tv-focus-scale);
       box-shadow: $tv-focus-shadow;
     }
-  }
-
-  // Focus ring for main container (remote nav)
-  &:focus-visible &__play-btn {
-    border: $tv-focus-border;
-    transform: scale($tv-focus-scale);
-    box-shadow: $tv-focus-shadow;
   }
 }
 

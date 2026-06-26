@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './content-row.scss';
 import { useFocusable } from '../../context/FocusContext';
@@ -6,48 +6,97 @@ import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 
 const FALLBACK = '/poster-mau.png';
 
-function FocusCard({ item, row, col }) {
-  const { ref, focused } = useFocusable(1, row, col);
-  const [poster, setPoster] = useState(FALLBACK);
+const getDefaultItemUrl = (item) => `/movie/${item.slug}`;
+const getDefaultItemBadge = (item) => item.episode_current || item.quality;
+const getDefaultItemSubtitle = (item) => item.year;
+const getDefaultFallbackPoster = () => FALLBACK;
+const shouldUseFetchedPoster = (posterUrl, fallbackPoster) =>
+  posterUrl && !(posterUrl === FALLBACK && fallbackPoster !== FALLBACK);
+
+function ContentCardContent({
+  item,
+  getItemUrl = getDefaultItemUrl,
+  getItemBadge = getDefaultItemBadge,
+  getItemSubtitle = getDefaultItemSubtitle,
+  getFallbackPoster = getDefaultFallbackPoster,
+  cardRef,
+  focused = false,
+}) {
+  const fallbackPoster = getFallbackPoster(item) || FALLBACK;
+  const badge = getItemBadge(item);
+  const subtitle = getItemSubtitle(item);
+  const [poster, setPoster] = useState(fallbackPoster);
 
   useEffect(() => {
-    if (!item?.tmdb) return;
+    let isCurrent = true;
+
+    setPoster(fallbackPoster);
+    if (!item?.tmdb) return () => {
+      isCurrent = false;
+    };
+
     fetchTMDBImages(item.tmdb).then(({ posterUrl }) => {
-      if (posterUrl) setPoster(posterUrl);
+      if (!isCurrent) return;
+      setPoster(shouldUseFetchedPoster(posterUrl, fallbackPoster) ? posterUrl : fallbackPoster);
     });
-  }, [item]);
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [item, fallbackPoster]);
 
   useEffect(() => {
-    if (focused && ref.current) {
-      ref.current.scrollIntoView({
+    if (focused && cardRef.current) {
+      cardRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
         inline: 'center',
       });
     }
-  }, [focused, ref]);
+  }, [focused, cardRef]);
 
   return (
     <Link
-      to={`/movie/${item.slug}`}
+      to={getItemUrl(item)}
       className={`content-row__card ${focused ? 'content-row__card--focused' : ''}`}
-      ref={ref}
+      ref={cardRef}
     >
       <div className="content-row__poster">
         <img src={poster} alt={item.name || item.title || ''} loading="lazy" />
-        {(item.episode_current || item.quality) && (
-          <span className="content-row__badge">{item.episode_current || item.quality}</span>
-        )}
+        {badge && <span className="content-row__badge">{badge}</span>}
       </div>
       <div className="content-row__info">
         <span className="content-row__name">{item.name || item.title}</span>
-        {item.year && <span className="content-row__year">{item.year}</span>}
+        {subtitle && <span className="content-row__year">{subtitle}</span>}
       </div>
     </Link>
   );
 }
 
-const ContentRow = ({ title, items = [], rowId, row }) => {
+function FocusableContentCard({ row, col, zone = 1, ...props }) {
+  const { ref, focused } = useFocusable(zone, row, col);
+
+  return <ContentCardContent {...props} cardRef={ref} focused={focused} />;
+}
+
+function PlainContentCard(props) {
+  const ref = useRef(null);
+
+  return <ContentCardContent {...props} cardRef={ref} focused={false} />;
+}
+
+const ContentRow = ({
+  title,
+  items = [],
+  rowId,
+  row,
+  getItemUrl,
+  getItemBadge,
+  getItemSubtitle,
+  getFallbackPoster,
+  tvFocusable = true,
+  zone = 1,
+}) => {
   if (!items.length) return null;
 
   return (
@@ -56,9 +105,23 @@ const ContentRow = ({ title, items = [], rowId, row }) => {
         <h2 className="content-row__title">{title}</h2>
       </div>
       <div className="content-row__track">
-        {items.slice(0, 12).map((item, idx) => (
-          <FocusCard key={item.slug || idx} item={item} row={row} col={idx} />
-        ))}
+        {items.slice(0, 12).map((item, idx) => {
+          const CardComponent = tvFocusable ? FocusableContentCard : PlainContentCard;
+
+          return (
+            <CardComponent
+              key={item.key || item.slug || idx}
+              item={item}
+              row={row}
+              col={idx}
+              getItemUrl={getItemUrl}
+              getItemBadge={getItemBadge}
+              getItemSubtitle={getItemSubtitle}
+              getFallbackPoster={getFallbackPoster}
+              zone={zone}
+            />
+          );
+        })}
       </div>
     </section>
   );

@@ -219,19 +219,28 @@ function reducer(state, action) {
       }
 
       const nextMemory = { ...rowMemory };
+      let nextLastFocusPerZone = lastFocusPerZone;
       if (newRow !== row) {
         nextMemory[`${zone}-${row}`] = col;
       }
 
       if (direction === 'ArrowRight' && zone === 0) {
-        const contentRow = findNearestRow(grid[1], row, maxRows[1]);
+        const savedContentFocus = lastFocusPerZone[1];
+        const contentRow = savedContentFocus?.row ?? findNearestRow(grid[1], row, maxRows[1]);
         newZone = 1;
         newRow = contentRow;
         const rowCols = Object.keys(grid[1]?.[newRow] || {}).map(Number).sort((a,b) => a-b);
-        newCol = rowCols.length ? rowCols[0] : 0;
+        newCol = savedContentFocus?.col !== undefined && rowCols.includes(savedContentFocus.col)
+          ? savedContentFocus.col
+          : (rowCols.length ? rowCols[0] : 0);
+      } else if (direction === 'ArrowLeft' && zone === 1 && newZone === 0) {
+        nextLastFocusPerZone = {
+          ...lastFocusPerZone,
+          [zone]: { row, col },
+        };
       }
 
-      return { ...state, zone: newZone, row: newRow, col: newCol, rowMemory: nextMemory };
+      return { ...state, zone: newZone, row: newRow, col: newCol, rowMemory: nextMemory, lastFocusPerZone: nextLastFocusPerZone };
     }
     case 'SAVE_FOCUS': {
       return { ...state, savedFocus: { zone: state.zone, row: state.row, col: state.col, scrollY: window.scrollY } };
@@ -333,6 +342,19 @@ function reducer(state, action) {
         zone: targetZone,
         row: targetRow ?? 0,
         col: targetCol ?? 0,
+      };
+    }
+    case 'SET_FOCUS_POSITION': {
+      const { zone, row, col } = action;
+      if (state.zone === zone && state.row === row && state.col === col) {
+        return state;
+      }
+
+      return {
+        ...state,
+        zone,
+        row,
+        col,
       };
     }
     default:
@@ -514,6 +536,10 @@ export function FocusProvider({ children }) {
     dispatch({ type: 'SKIP_TO_ZONE', targetZone, targetRow, targetCol, restoreLastFocus });
   }, []);
 
+  const setFocusPosition = useCallback((zone, row, col) => {
+    dispatch({ type: 'SET_FOCUS_POSITION', zone, row, col });
+  }, []);
+
   const focusCurrent = useCallback((scrollBehavior = 'smooth', retryCount = 0) => {
     const activeElement = document.activeElement;
     if (
@@ -539,9 +565,14 @@ export function FocusProvider({ children }) {
         state.row !== prevState.row ||
         state.zone !== prevState.zone
       );
+      const isTopRow = state.row === 0;
+      const blockAlignment = isTopRow ? 'start' : (shouldCenter ? 'center' : 'nearest');
+      const scrollTarget = isTopRow
+        ? domRef.current.closest?.('[data-focus-scroll-root="true"]') || domRef.current
+        : domRef.current;
       
-      domRef.current.scrollIntoView?.({
-        block: shouldCenter ? 'center' : 'nearest',
+      scrollTarget.scrollIntoView?.({
+        block: blockAlignment,
         inline: 'nearest',
         behavior: scrollBehavior,
       });
@@ -583,7 +614,12 @@ export function FocusProvider({ children }) {
   // Keyboard handler with acceleration
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (state.activeTrap === null && e.target?.closest?.('.custom-video-player')) return;
+      if (
+        e.target?.closest?.('.custom-video-player') ||
+        document.activeElement?.closest?.('.custom-video-player')
+      ) {
+        return;
+      }
 
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       
@@ -660,6 +696,7 @@ export function FocusProvider({ children }) {
     setTrap,
     clearTrap,
     skipToZone,
+    setFocusPosition,
   };
 
   return React.createElement(FocusContext.Provider, { value }, children);
@@ -678,13 +715,20 @@ export function useOptionalFocus() {
 export function useFocusable(zone, row, col) {
   const ref = useRef(null);
   const ctx = useOptionalFocus();
-  const { register, unregister, state } = ctx || {};
+  const { register, unregister, setFocusPosition, state } = ctx || {};
 
   useEffect(() => {
     if (!register || !unregister) return undefined;
     register(zone, row, col, ref);
-    return () => unregister(zone, row, col);
-  }, [zone, row, col, register, unregister]);
+    const element = ref.current;
+    const syncFocusPosition = () => setFocusPosition?.(zone, row, col);
+    element?.addEventListener?.('focus', syncFocusPosition);
+
+    return () => {
+      element?.removeEventListener?.('focus', syncFocusPosition);
+      unregister(zone, row, col);
+    };
+  }, [zone, row, col, register, unregister, setFocusPosition]);
 
   const focused = state?.zone === zone && state?.row === row && state?.col === col;
 

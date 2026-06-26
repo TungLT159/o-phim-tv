@@ -167,7 +167,7 @@ test("renders continue watching before theatrical movies when watch history exis
   });
 });
 
-test("renders TV continue watching as the first focus row and offsets content rows", async () => {
+test("keeps TV hero as the first focus row and offsets continue watching/content rows", async () => {
   mockIsTauri.mockReturnValue(true);
   mockGetMoviesList.mockResolvedValue({
     data: {
@@ -188,9 +188,9 @@ test("renders TV continue watching as the first focus row and offsets content ro
 
   const continueWatching = screen.getByTestId("continue-watching-list");
   expect(continueWatching).toHaveAttribute("data-tv-focusable", "true");
-  expect(continueWatching).toHaveAttribute("data-row", "0");
+  expect(continueWatching).toHaveAttribute("data-row", "1");
 
   const rows = await screen.findAllByTestId("content-row");
-  expect(rows[0]).toHaveAttribute("data-row", "1");
+  expect(rows[0]).toHaveAttribute("data-row", "2");
   expect(rows[0]).toHaveAttribute("data-row-id", "phim-moi");
 });

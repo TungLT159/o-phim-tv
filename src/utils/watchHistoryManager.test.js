@@ -367,6 +367,67 @@ test("updates cache synchronously before Electron writes settle", async () => {
   await savePromise;
 });
 
+test("saveWatchProgress persists provided tmdb metadata", async () => {
+  await initializeWatchHistory();
+
+  await saveWatchProgress("movie-a", "ep-1", 120, 600, {
+    title: "Movie A",
+    slug: "movie-a",
+    tmdb: { id: 999, type: "movie" },
+  });
+
+  expect(await getWatchProgress("movie-a", "ep-1")).toMatchObject({
+    movieInfo: {
+      title: "Movie A",
+      poster: "",
+      slug: "movie-a",
+      tmdb: { id: 999, type: "movie" },
+    },
+  });
+});
+
+test("saveWatchProgress preserves existing tmdb metadata when a later save omits it", async () => {
+  await initializeWatchHistory();
+
+  await saveWatchProgress("movie-a", "ep-1", 120, 600, {
+    title: "Movie A",
+    slug: "movie-a",
+    tmdb: { id: 999, type: "movie" },
+  });
+  await saveWatchProgress("movie-a", "ep-1", 240, 600, {
+    title: "Movie A Updated",
+    slug: "movie-a",
+  });
+
+  expect(await getWatchProgress("movie-a", "ep-1")).toMatchObject({
+    currentTime: 240,
+    movieInfo: {
+      title: "Movie A Updated",
+      poster: "",
+      slug: "movie-a",
+      tmdb: { id: 999, type: "movie" },
+    },
+  });
+});
+
+test("saveWatchProgress omits tmdb metadata when it is absent", async () => {
+  await initializeWatchHistory();
+
+  await saveWatchProgress("movie-a", "ep-1", 120, 600, {
+    title: "Movie A",
+    slug: "movie-a",
+  });
+
+  const progress = await getWatchProgress("movie-a", "ep-1");
+
+  expect(progress.movieInfo).toEqual({
+    title: "Movie A",
+    poster: "",
+    slug: "movie-a",
+  });
+  expect(progress.movieInfo).not.toHaveProperty("tmdb");
+});
+
 test("shares first initialization across concurrent saves", async () => {
   const readDeferred = createDeferred();
   window.ophimWatchHistoryStorage = {

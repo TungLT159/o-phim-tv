@@ -100,6 +100,89 @@ test("remote arrows follow the nearest real UI position instead of only row and 
   expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus();
 });
 
+test("aligns the top hero row to the start when focus returns from lower rows", async () => {
+  render(
+    <FocusProvider>
+      <PositionedTvButton row={0} col={0} rect={{ left: 500, top: 100, width: 120, height: 50 }}>
+        Xem ngay
+      </PositionedTvButton>
+      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
+        Phim 1
+      </PositionedTvButton>
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
+
+  window.HTMLElement.prototype.scrollIntoView.mockClear();
+  fireEvent.keyDown(document, { key: "ArrowUp" });
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+  expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(
+    expect.objectContaining({ block: "start" }),
+  );
+});
+
+test("scrolls the top-row section container to the start when focus returns from lower rows", async () => {
+  const rootScrollIntoView = jest.fn();
+  const buttonScrollIntoView = jest.fn();
+
+  function HeroButton() {
+    const { ref } = useFocusable(1, 0, 0);
+
+    return (
+      <section data-focus-scroll-root="true" ref={(node) => {
+        if (node) node.scrollIntoView = rootScrollIntoView;
+      }}>
+        <button ref={(node) => {
+          ref.current = node;
+          if (node) {
+            node.scrollIntoView = buttonScrollIntoView;
+            node.getBoundingClientRect = jest.fn(() => ({
+              left: 500,
+              top: 100,
+              right: 620,
+              bottom: 150,
+              width: 120,
+              height: 50,
+              x: 500,
+              y: 100,
+              toJSON: () => {},
+            }));
+          }
+        }} type="button">Xem ngay</button>
+      </section>
+    );
+  }
+
+  render(
+    <FocusProvider>
+      <HeroButton />
+      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
+        Phim 1
+      </PositionedTvButton>
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
+
+  rootScrollIntoView.mockClear();
+  buttonScrollIntoView.mockClear();
+  fireEvent.keyDown(document, { key: "ArrowUp" });
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+  expect(rootScrollIntoView).toHaveBeenCalledWith(
+    expect.objectContaining({ block: "start" }),
+  );
+  expect(buttonScrollIntoView).not.toHaveBeenCalled();
+});
+
 test("horizontal navigation stays in the current UI row before considering lower rows", async () => {
   render(
     <FocusProvider>
@@ -142,4 +225,32 @@ test("horizontal navigation follows the visual row when logical grid rows are st
   fireEvent.keyDown(document, { key: "ArrowRight" });
 
   expect(screen.getByRole("button", { name: "Visual Row Item 2" })).toHaveFocus();
+});
+
+test("restores the last content row when returning from the sidebar", async () => {
+  render(
+    <FocusProvider>
+      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 64, height: 50 }}>
+        Sidebar Home
+      </PositionedTvButton>
+      <PositionedTvButton row={0} col={0} rect={{ left: 240, top: 100, width: 120, height: 50 }}>
+        Hero
+      </PositionedTvButton>
+      <PositionedTvButton row={5} col={0} rect={{ left: 240, top: 520, width: 120, height: 50 }}>
+        Saved Row Item
+      </PositionedTvButton>
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Hero" })).toHaveFocus());
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(screen.getByRole("button", { name: "Saved Row Item" })).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowLeft" });
+  expect(screen.getByRole("button", { name: "Sidebar Home" })).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "ArrowRight" });
+
+  expect(screen.getByRole("button", { name: "Saved Row Item" })).toHaveFocus();
 });

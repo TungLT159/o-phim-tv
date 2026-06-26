@@ -1,0 +1,116 @@
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at center, rgba(231, 47, 47, 0.22), transparent 36rem),
+    radial-gradient(circle at 50% 45%, rgba(255, 190, 92, 0.14), transparent 22rem),
+    linear-gradient(135deg, #050608 0%, #101018 48%, #020204 100%);
+  color: #fff4df;
+  opacity: 1;
+  transition: opacity 250ms ease;
+}
+
+.intro-splash::before,
+.intro-splash::after {
+  position: absolute;
+  inset: auto 0;
+  height: 18vh;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.66), transparent);
+}
+
+.intro-splash::before {
+  top: 0;
+}
+
+.intro-splash::after {
+  bottom: 0;
+  transform: rotate(180deg);
+}
+
+.intro-splash--leaving {
+  opacity: 0;
+}
+
+.intro-splash__glow {
+  position: absolute;
+  width: clamp(11rem, 30vw, 22rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 54, 54, 0.34), rgba(255, 54, 54, 0) 66%);
+  filter: blur(12px);
+  animation: intro-glow 1800ms ease-in-out infinite alternate;
+}
+
+.intro-splash__logo {
+  position: relative;
+  width: clamp(5rem, 16vw, 9rem);
+  height: clamp(5rem, 16vw, 9rem);
+  object-fit: contain;
+  filter: drop-shadow(0 1.2rem 2.6rem rgba(0, 0, 0, 0.56));
+  animation: intro-logo 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro-splash__title {
+  position: relative;
+  margin-top: 1.1rem;
+  font-size: clamp(1.35rem, 4vw, 2.45rem);
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  text-shadow: 0 0.8rem 2.1rem rgba(255, 58, 58, 0.34);
+  animation: intro-title 800ms 140ms ease both;
+}
+
+@keyframes intro-logo {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.86);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes intro-title {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes intro-glow {
+  from {
+    opacity: 0.58;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash,
+  .intro-splash__glow,
+  .intro-splash__logo,
+  .intro-splash__title {
+    animation: none;
+    transition: none;
+  }
+}

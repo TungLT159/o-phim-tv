@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for O Phim",
+  "description": "Default capabilities for Ổ Phim",
   "windows": ["main"],
   "permissions": [
     "core:default",

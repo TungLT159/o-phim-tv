@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import tmdbApi from '../../api/tmdbApi';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
@@ -11,13 +11,26 @@ import EpisodeGroupAccordion from '../../components/episode-group-accordion/Epis
 import { useFocusable } from '../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../utils/episodeDisplayName';
 import { buildEpisodeDisplayGroups } from '../../utils/episodeChunkGroups';
+import {
+  flushWatchHistory,
+  getWatchProgress,
+  saveWatchProgress,
+  shouldShowContinueWatching,
+} from '../../utils/watchHistoryManager';
 import '../detail/detail.scss';
 import './tv-detail.scss';
 
-function PlayButton({ label, onClick }) {
+const getEpisodeProgressKey = (episode) => episode?.episodeKey || episode?.name || '';
+
+function PlayButton({ label, onClick, onFocus }) {
   const { ref, focused } = useFocusable(1, 0, 0);
   return (
-    <button ref={ref} className={`tv-detail__play-btn ${focused ? 'tv-detail__play-btn--focused' : ''}`} onClick={onClick}>
+    <button
+      ref={ref}
+      className={`tv-detail__play-btn ${focused ? 'tv-detail__play-btn--focused' : ''}`}
+      onClick={onClick}
+      onFocus={onFocus}
+    >
       <i className="bx bx-play" /> {label}
     </button>
   );
@@ -31,6 +44,8 @@ export default function TvDetail() {
   const [overview, setOverview] = useState('');
   const [similar, setSimilar] = useState([]);
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
+  const [savedProgress, setSavedProgress] = useState(null);
+  const videoRef = useRef(null);
 
   const query = new URLSearchParams(location.search);
   const epParam = query.get('ep') || '';
@@ -55,6 +70,7 @@ export default function TvDetail() {
       return episodeIdentity === currentIdentity;
     });
   }, [currentEp, episodeList]);
+  const canGoPrevEpisode = currentEpisodeIndex > 0;
   const canGoNextEpisode = currentEpisodeIndex !== -1 && currentEpisodeIndex < episodeList.length - 1;
   const displayEpisodeGroups = useMemo(
     () => buildEpisodeDisplayGroups(allEpisodeGroups, 50),
@@ -81,11 +97,111 @@ export default function TvDetail() {
     window.history.pushState({ playerOpen: true }, '');
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    setSavedProgress(null);
+
+    if (!currentEp) return undefined;
+
+    getWatchProgress(id, getEpisodeProgressKey(currentEp))
+      .then((progress) => {
+        if (isCancelled) return;
+
+        if (progress && shouldShowContinueWatching(progress.currentTime, progress.duration)) {
+          setSavedProgress(progress);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentEp, id]);
+
+  useEffect(() => {
+    if (!playing || !savedProgress) return;
+
+    const video = videoRef.current;
+    if (video) {
+      video.currentTime = savedProgress.currentTime;
+    }
+  }, [playing, savedProgress]);
+
+  useEffect(() => {
+    if (!playing || !currentEp || !movie) return undefined;
+
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const persistCurrentProgress = ({ flush = false } = {}) => {
+      const currentVideo = videoRef.current || video;
+
+      if (
+        !currentVideo ||
+        currentVideo.currentTime <= 0 ||
+        currentVideo.duration <= 0
+      ) {
+        return;
+      }
+
+      const savePromise = saveWatchProgress(
+        id,
+        getEpisodeProgressKey(currentEp),
+        currentVideo.currentTime,
+        currentVideo.duration,
+        {
+          title: movie.name || movie.origin_name,
+          poster: movie.poster_url || movie.poster || movie.thumb_url || '',
+          slug: movie.slug || id,
+          tmdb: movie.tmdb,
+        },
+      );
+
+      if (flush) {
+        Promise.resolve(savePromise).finally(() => {
+          flushWatchHistory();
+        });
+      }
+    };
+
+    const handleTimeUpdate = () => persistCurrentProgress();
+    const handlePageHide = () => persistCurrentProgress({ flush: true });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        persistCurrentProgress({ flush: true });
+      }
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      persistCurrentProgress({ flush: true });
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentEp, id, movie, playing]);
+
+  const handlePlayButtonFocus = useCallback(() => {
+    window.requestAnimationFrame?.(() => {
+      window.scrollTo?.({ top: 0, behavior: 'smooth' });
+    });
+  }, []);
+
   const handleEpisodeClick = useCallback((ep) => {
     selectEpisode(ep);
     setPlaying(true);
     window.history.pushState({ playerOpen: true }, '');
   }, [selectEpisode]);
+
+  const handlePrevEpisode = useCallback(() => {
+    if (!canGoPrevEpisode) return;
+    selectEpisode(episodeList[currentEpisodeIndex - 1]);
+  }, [canGoPrevEpisode, currentEpisodeIndex, episodeList, selectEpisode]);
+
   const handleNextEpisode = useCallback(() => {
     if (!canGoNextEpisode) return;
     selectEpisode(episodeList[currentEpisodeIndex + 1]);
@@ -133,10 +249,11 @@ export default function TvDetail() {
   };
 
   return (
-    <div className="tv-detail">
+    <div className="tv-detail" data-focus-scroll-root="true">
       {playing && (
         <div className="tv-detail__player">
           <CustomVideoPlayer
+            videoRef={videoRef}
             movieId={id}
             episode={currentEp}
             title={movie.name}
@@ -144,6 +261,8 @@ export default function TvDetail() {
             episodeGroups={displayEpisodeGroups}
             currentEpisode={currentEp}
             onSelectEpisode={selectEpisode}
+            canGoPrevEpisode={canGoPrevEpisode}
+            onPrevEpisode={handlePrevEpisode}
             canGoNextEpisode={canGoNextEpisode}
             nextEpisodeName={canGoNextEpisode ? episodeList[currentEpisodeIndex + 1]?.name : undefined}
             onNextEpisode={handleNextEpisode}
@@ -174,8 +293,9 @@ export default function TvDetail() {
 
         <div className="tv-detail__actions">
           <PlayButton
-            label={`Phát ${currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}`}
+            label={`${savedProgress ? 'Xem tiếp' : 'Phát'} ${currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}`}
             onClick={handlePlay}
+            onFocus={handlePlayButtonFocus}
           />
         </div>
 

@@ -8,7 +8,7 @@ import axiosClient from '../../api/axiosClient';
 import { useFocusable } from '../../context/FocusContext';
 import './tv-hero.scss';
 
-const HeroItem = ({ item, focusRef, focused }) => {
+const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
   const navigate = useNavigate();
   const [movie, setMovie] = useState(null);
   const [backdropUrl, setBackdropUrl] = useState('');
@@ -75,6 +75,7 @@ const HeroItem = ({ item, focusRef, focused }) => {
             type="button"
             className={`tv-hero__play-btn ${focused ? 'tv-hero__play-btn--focused' : ''}`}
             onClick={handlePlay}
+            onFocus={onPlayButtonFocus}
             aria-label="Xem ngay"
           >
             <i className="bx bx-play" />
@@ -90,6 +91,18 @@ const TvHero = () => {
   const [items, setItems] = useState([]);
   const { ref, focused } = useFocusable(1, 0, 0);
 
+  const handlePlayButtonFocus = useCallback(() => {
+    window.requestAnimationFrame?.(() => {
+      window.scrollTo?.({ top: 0, behavior: 'smooth' });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!focused) return;
+
+    handlePlayButtonFocus();
+  }, [focused, handlePlayButtonFocus]);
+
   useEffect(() => {
     tmdbApi
       .getMoviesList(movieType.phimChieuRap, { page: 1 })
@@ -103,7 +116,11 @@ const TvHero = () => {
   if (!items.length) return null;
 
   return (
-    <div className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`} aria-label="Phim nổi bật">
+    <div
+      className={`tv-hero ${focused ? 'tv-hero--focused' : ''}`}
+      aria-label="Phim nổi bật"
+      data-focus-scroll-root="true"
+    >
       <Swiper
         modules={[Autoplay]}
         grabCursor={false}
@@ -115,7 +132,14 @@ const TvHero = () => {
         {items.map((item) => (
           <SwiperSlide key={item._id || item.slug}>
             {({ isActive }) =>
-              isActive ? <HeroItem item={item} focusRef={ref} focused={focused} /> : null
+              isActive ? (
+                <HeroItem
+                  item={item}
+                  focusRef={ref}
+                  focused={focused}
+                  onPlayButtonFocus={handlePlayButtonFocus}
+                />
+              ) : null
             }
           </SwiperSlide>
         ))}

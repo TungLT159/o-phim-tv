@@ -214,6 +214,23 @@ test("passes episode navigation props to the custom video player", async () => {
   );
 });
 
+test("passes previous episode props when TV detail starts on a later episode", async () => {
+  renderDetail("/movie/test-movie?ep=0:tap-2");
+
+  await waitFor(() => expect(mockCustomVideoPlayer).toHaveBeenCalled());
+
+  const playerProps = mockCustomVideoPlayer.mock.calls.at(-1)[0];
+
+  expect(playerProps).toEqual(
+    expect.objectContaining({
+      canGoPrevEpisode: true,
+      canGoNextEpisode: false,
+      onPrevEpisode: expect.any(Function),
+      onNextEpisode: expect.any(Function),
+    }),
+  );
+});
+
 test("custom video player auto-play toggle controls the existing setting", async () => {
   renderDetail("/movie/test-movie?ep=0:tap-1");
 

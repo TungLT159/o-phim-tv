@@ -216,6 +216,14 @@ export const saveWatchProgress = (movieId, episodeName, currentTime, duration, m
   }
 
   const key = `${movieId}_${episodeName}`;
+  const existingItem = watchHistoryCache.find(item => item.key === key);
+  const tmdb = movieInfo.tmdb ?? existingItem?.movieInfo?.tmdb;
+  const storedMovieInfo = {
+    title: movieInfo.title || '',
+    poster: movieInfo.poster || '',
+    slug: movieInfo.slug || '',
+    ...(tmdb ? { tmdb } : {}),
+  };
   const watchItem = {
     key,
     movieId,
@@ -224,11 +232,7 @@ export const saveWatchProgress = (movieId, episodeName, currentTime, duration, m
     duration,
     percentage: duration > 0 ? (currentTime / duration) * 100 : 0,
     timestamp: new Date().toISOString(),
-    movieInfo: {
-      title: movieInfo.title || '',
-      poster: movieInfo.poster || '',
-      slug: movieInfo.slug || '',
-    },
+    movieInfo: storedMovieInfo,
   };
 
   watchHistoryCache = normalizeHistory([

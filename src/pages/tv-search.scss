@@ -15,7 +15,7 @@
     border: 2px solid transparent;
     transition: border-color 0.2s;
 
-    &:focus-within { border-color: #ff6b35; }
+    &:focus-within { border-color: #fff; }
   }
 
   &__bar-icon {
@@ -81,10 +81,7 @@
   &--focused {
     transform: scale(1.08);
     z-index: 5;
-
-    .tv-search-card__poster {
-      box-shadow: 0 0 0 3px #ff6b35, 0 8px 24px rgba(0, 0, 0, 0.5);
-    }
+    box-shadow: 0 0 0 3px #fff, 0 8px 24px rgba(0, 0, 0, 0.5);
   }
 
   &__poster {

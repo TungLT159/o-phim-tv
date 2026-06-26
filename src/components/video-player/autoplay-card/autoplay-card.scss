@@ -3,49 +3,80 @@
 .autoplay-card {
   position: absolute;
   bottom: 120px;
-  right: 60px;
-  width: 400px;
-  padding: $tv-gap-lg;
-  background: rgba(20, 20, 20, 0.95);
-  border-radius: $tv-card-border-radius;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  right: clamp(24px, 4vw, 60px);
+  width: min(430px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 22px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04)),
+    rgba(11, 13, 18, 0.92);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
   z-index: 15;
   opacity: 0;
-  transition: opacity 300ms ease-out;
+  transform: translate3d(18px, 12px, 0) scale(0.98);
+  transition:
+    opacity 260ms ease-out,
+    transform 260ms ease-out;
 
   &--visible {
     opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   &__content {
-    margin-bottom: 20px;
+    position: relative;
+    margin-bottom: 22px;
+    padding-left: 16px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 0;
+      width: 4px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ffffff, rgba(255, 255, 255, 0.22));
+    }
   }
 
   &__label {
-    display: block;
-    font-size: $tv-text-small;
-    color: $tv-text-secondary;
-    margin-bottom: $tv-gap-sm;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 10px;
+    margin-bottom: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 13px;
+    font-weight: $tv-weight-semibold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   &__title {
     display: block;
-    font-size: 20px;
-    font-weight: $tv-weight-semibold;
+    margin-bottom: 8px;
     color: $tv-text-primary;
-    margin-bottom: $tv-gap-sm;
+    font-size: 26px;
+    font-weight: $tv-weight-bold;
+    line-height: 1.18;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
   }
 
   &__countdown {
     display: block;
+    color: rgba(255, 255, 255, 0.68);
     font-size: $tv-text-body;
-    color: $tv-text-secondary;
   }
 
   &__actions {
     display: flex;
-    gap: $tv-gap-md;
+    gap: 14px;
   }
 
   &__button {
@@ -56,10 +87,11 @@
     border: 2px solid transparent;
     cursor: pointer;
     overflow: hidden;
-    transition: 
+    transition:
       transform $tv-focus-transition,
       border $tv-focus-transition,
-      box-shadow $tv-focus-transition;
+      box-shadow $tv-focus-transition,
+      background $tv-focus-transition;
 
     > span:not(.autoplay-card__button-fill),
     > i {
@@ -69,16 +101,14 @@
 
     &--play {
       flex: 1;
-      height: 48px;
+      height: 52px;
       padding: 0 $tv-gap-lg;
-      background: $tv-text-primary;
-      color: $tv-bg;
+      background: linear-gradient(135deg, #ffffff, #d7dbe4);
+      color: #05070a;
       font-size: $tv-text-body;
-      font-weight: $tv-weight-semibold;
-      border-radius: 4px;
-
-      // Pulse animation during countdown
-      animation: pulse-border 2s infinite;
+      font-weight: $tv-weight-bold;
+      border-radius: 14px;
+      box-shadow: 0 12px 28px rgba(255, 255, 255, 0.12);
     }
 
     &-fill {
@@ -86,7 +116,7 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      background: rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.42);
       transform: scaleX(0);
       transform-origin: left center;
       animation: autoplay-fill var(--autoplay-duration, 10s) linear forwards;
@@ -94,37 +124,29 @@
     }
 
     &--cancel {
-      width: 48px;
-      height: 48px;
-      background: transparent;
-      border: 2px solid rgba(255, 255, 255, 0.3);
+      width: 52px;
+      height: 52px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.28);
       border-radius: 50%;
       color: $tv-text-primary;
 
       i {
-        font-size: 24px;
+        font-size: 25px;
       }
     }
 
     &--focused {
-      border: 4px solid $tv-accent;
-      transform: scale(1.05);
-      box-shadow: $tv-focus-shadow;
+      border-color: $tv-focus-border-color;
+      transform: scale(1.07);
+      box-shadow: $tv-focus-shadow, 0 18px 36px rgba(0, 0, 0, 0.42);
       z-index: 1;
 
       &.autoplay-card__button--cancel {
-        border-color: $tv-text-primary;
+        border-color: #ffffff;
+        background: rgba(255, 255, 255, 0.16);
       }
     }
-  }
-}
-
-@keyframes pulse-border {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
   }
 }
 

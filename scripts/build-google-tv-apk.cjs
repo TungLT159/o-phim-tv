@@ -35,6 +35,27 @@ function getApkPath(rootDir = process.cwd()) {
   return toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'apk', 'arm', 'release', 'app-arm-release.apk'));
 }
 
+function getTauriIconPaths(rootDir = process.cwd()) {
+  return [
+    {
+      source: toPosix(path.join(rootDir, 'public', 'logo192.png')),
+      destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '32x32.png')),
+    },
+    {
+      source: toPosix(path.join(rootDir, 'public', 'logo192.png')),
+      destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '128x128.png')),
+    },
+    {
+      source: toPosix(path.join(rootDir, 'public', 'logo512.png')),
+      destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '128x128@2x.png')),
+    },
+    {
+      source: toPosix(path.join(rootDir, 'public', 'logo.ico')),
+      destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', 'icon.ico')),
+    },
+  ];
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: 'inherit',
@@ -57,6 +78,22 @@ function copyArmLibrary(rootDir = process.cwd()) {
   fs.mkdirSync(path.dirname(paths.destination), { recursive: true });
   fs.copyFileSync(paths.source, paths.destination);
   return paths;
+}
+
+function prepareTauriIcons(rootDir = process.cwd()) {
+  const iconPaths = getTauriIconPaths(rootDir);
+  for (const iconPath of iconPaths) {
+    if (!fs.existsSync(iconPath.source)) {
+      throw new Error(`Missing public logo asset: ${iconPath.source}`);
+    }
+  }
+
+  for (const iconPath of iconPaths) {
+    fs.mkdirSync(path.dirname(iconPath.destination), { recursive: true });
+    fs.copyFileSync(iconPath.source, iconPath.destination);
+  }
+
+  return iconPaths;
 }
 
 function addUsesFeature(manifest, featureName, required) {
@@ -117,6 +154,7 @@ function verifyApk(apkPath) {
 
 function buildGoogleTvApk(rootDir = process.cwd()) {
   const plan = getBuildPlan();
+  prepareTauriIcons(rootDir);
   updateGoogleTvManifest(rootDir);
   try {
     run('npx', plan.tauriArgs, { cwd: rootDir });
@@ -151,6 +189,8 @@ module.exports = {
   getBuildPlan,
   getArmLibraryPaths,
   getApkPath,
+  getTauriIconPaths,
+  prepareTauriIcons,
   ensureGoogleTvManifestCompatibility,
   buildGoogleTvApk,
 };

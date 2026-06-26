@@ -48,6 +48,8 @@ const isVisibleFocusable = (element) => {
 };
 
 const getCenter = (element) => {
+  if (!element) return null;
+
   const rect = element.getBoundingClientRect?.();
   if (!rect || rect.width <= 0 || rect.height <= 0) return null;
   return {
@@ -173,12 +175,13 @@ const CustomVideoPlayer = ({
   const seekAccelerationRef = useRef({
     startTime: null,
     intervalId: null,
-    tickCount: 0,
   });
   const tvAutoPlayTimerRef = useRef(null);
   const tvAutoPlayTriggeredRef = useRef(false);
+  const nextEpisodeTriggeredRef = useRef(false);
   const resumeAfterSeekRef = useRef(null);
   const seekWasPlayingRef = useRef(false);
+  const remoteSeekActiveRef = useRef(false);
   const [tvAutoPlayCountdown, setTvAutoPlayCountdown] = useState(null);
   const [seekPreviewTime, setSeekPreviewTime] = useState(null);
   const isSeekingRef = useRef(false);
@@ -208,6 +211,14 @@ const CustomVideoPlayer = ({
     }
     setTvAutoPlayCountdown(null);
   }, []);
+
+  const triggerNextEpisodeOnce = useCallback(() => {
+    if (nextEpisodeTriggeredRef.current) return false;
+    nextEpisodeTriggeredRef.current = true;
+    clearTvAutoPlayTimer();
+    onNextEpisode?.();
+    return true;
+  }, [clearTvAutoPlayTimer, onNextEpisode]);
 
   const updateSeekTooltip = useCallback((time) => {
     const video = getVideo();
@@ -259,8 +270,10 @@ const CustomVideoPlayer = ({
     const pending = resumeAfterSeekRef.current;
     if (pending) {
       pending.video.removeEventListener("seeked", pending.handler);
-      pending.video.volume = pending.previousVolume;
-      pending.video.muted = pending.wasMuted;
+      if (pending.timeoutId) {
+        clearTimeout(pending.timeoutId);
+      }
+      pending.restore(false);
       resumeAfterSeekRef.current = null;
     }
   }, []);
@@ -288,18 +301,37 @@ const CustomVideoPlayer = ({
       const shouldResume = resumePlayback && (forceResumePlayback || !video.paused);
 
       if (shouldResume) {
-        const resumePlaybackAfterSeek = () => {
+        let restored = false;
+        const restoreAudioState = (shouldPlay) => {
+          if (restored) return;
+          restored = true;
           video.volume = previousVolume;
           video.muted = wasMuted;
+          if (resumeAfterSeekRef.current?.timeoutId) {
+            clearTimeout(resumeAfterSeekRef.current.timeoutId);
+          }
           resumeAfterSeekRef.current = null;
-          video.play?.().catch?.(() => setHasError(true));
+          if (shouldPlay) {
+            video.play?.().catch?.(() => setHasError(true));
+          }
         };
+
+        const resumePlaybackAfterSeek = () => {
+          restoreAudioState(true);
+        };
+
+        const fallbackTimeoutId = setTimeout(() => {
+          video.removeEventListener("seeked", resumePlaybackAfterSeek);
+          restoreAudioState(true);
+        }, 1200);
 
         resumeAfterSeekRef.current = {
           video,
           handler: resumePlaybackAfterSeek,
           previousVolume,
           wasMuted,
+          timeoutId: fallbackTimeoutId,
+          restore: restoreAudioState,
         };
         video.addEventListener("seeked", resumePlaybackAfterSeek, { once: true });
         video.pause?.();
@@ -491,6 +523,24 @@ const CustomVideoPlayer = ({
     }
   }, []);
 
+  const focusFirstSidebarControl = useCallback(() => {
+    const sidebar = playerRef.current?.querySelector('.episode-sidebar');
+    if (!sidebar) return false;
+
+    const buttons = Array.from(sidebar.querySelectorAll('button:not(:disabled)'))
+      .filter(isVisibleFocusable);
+    const preferredButton = buttons.find((button) => button.classList?.contains('episode-sidebar__item'));
+    const target = preferredButton || buttons[0];
+
+    if (!target) return false;
+    target.focus();
+    return true;
+  }, []);
+
+  const focusTimeline = useCallback(() => {
+    return focusElement(playerRef.current, ".custom-video-player__progress");
+  }, []);
+
   const focusAutoplayCardButton = useCallback((direction) => {
     const root = playerRef.current;
     if (!root) return false;
@@ -540,32 +590,46 @@ const CustomVideoPlayer = ({
     return false;
   }, [focusAutoplayCardButton]);
 
+  const clearSeekAccelerationState = useCallback(() => {
+    if (seekAccelerationRef.current.intervalId) {
+      clearInterval(seekAccelerationRef.current.intervalId);
+    }
+    seekAccelerationRef.current.startTime = null;
+    seekAccelerationRef.current.intervalId = null;
+    remoteSeekActiveRef.current = false;
+    seekWasPlayingRef.current = false;
+    isSeekingRef.current = false;
+    seekTargetRef.current = 0;
+  }, []);
+
   const startSeekAcceleration = useCallback((direction) => {
     const video = getVideo();
     const dur = video?.duration || duration;
     if (!dur) return;
     if (seekAccelerationRef.current.startTime) return;
+    if (seekAccelerationRef.current.intervalId) {
+      clearInterval(seekAccelerationRef.current.intervalId);
+      seekAccelerationRef.current.intervalId = null;
+    }
 
     const startTime = Date.now();
     seekAccelerationRef.current.startTime = startTime;
-    seekAccelerationRef.current.tickCount = 0;
+    remoteSeekActiveRef.current = true;
     isSeekingRef.current = true;
     seekWasPlayingRef.current = !video.paused;
     seekTargetRef.current = video?.currentTime || 0;
 
-    seekTargetRef.current = Math.min(Math.max(seekTargetRef.current + direction * 5, 0), dur);
+    seekTargetRef.current = Math.min(Math.max(seekTargetRef.current + direction * 10, 0), dur);
     setSeekPreviewTime(seekTargetRef.current);
     updateSeekTooltip(seekTargetRef.current);
 
     seekAccelerationRef.current.intervalId = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      seekAccelerationRef.current.tickCount += 1;
-      const tickCount = seekAccelerationRef.current.tickCount;
 
       let stepSeconds;
       if (elapsed < 1000) stepSeconds = 10;
-      else if (elapsed < 2000) stepSeconds = 20;
-      else stepSeconds = 40;
+      else if (elapsed < 2000) stepSeconds = 25;
+      else stepSeconds = 60;
 
       seekTargetRef.current = Math.min(Math.max(seekTargetRef.current + direction * stepSeconds, 0), dur);
 
@@ -576,29 +640,29 @@ const CustomVideoPlayer = ({
   }, [getVideo, duration, updateSeekTooltip]);
 
   const stopSeekAcceleration = useCallback(() => {
+    if (!remoteSeekActiveRef.current) return;
+
     if (seekAccelerationRef.current.intervalId) {
       clearInterval(seekAccelerationRef.current.intervalId);
     }
-    seekAccelerationRef.current.startTime = null;
-    seekAccelerationRef.current.intervalId = null;
 
     const video = getVideo();
-    if (video && seekTargetRef.current > 0) {
-      seekToTime(seekTargetRef.current, {
+    const finalTarget = seekTargetRef.current;
+    if (video && finalTarget >= 0) {
+      seekToTime(finalTarget, {
         resumePlayback: true,
         forceResumePlayback: seekWasPlayingRef.current,
       });
-      setCurrentTime(seekTargetRef.current);
+      setCurrentTime(finalTarget);
     }
 
-    isSeekingRef.current = false;
-    seekWasPlayingRef.current = false;
+    clearSeekAccelerationState();
 
     setTimeout(() => {
       setSeekPreviewTime(null);
       hideSeekTooltip();
     }, 500);
-  }, [getVideo, hideSeekTooltip, seekToTime]);
+  }, [clearSeekAccelerationState, getVideo, hideSeekTooltip, seekToTime]);
 
   useEffect(() => {
     const video = getVideo();
@@ -632,7 +696,7 @@ const CustomVideoPlayer = ({
                   clearInterval(tvAutoPlayTimerRef.current);
                   tvAutoPlayTimerRef.current = null;
                 }
-                onNextEpisode?.();
+                triggerNextEpisodeOnce();
                 return null;
               }
               return prev - 1;
@@ -662,8 +726,8 @@ const CustomVideoPlayer = ({
       setHasError(true);
     };
     const handleEnded = () => {
-      if (selfContained && autoPlayEnabled && canGoNextEpisode) {
-        onNextEpisode?.();
+      if (selfContained && autoPlayEnabled && canGoNextEpisode && !tvAutoPlayTriggeredRef.current) {
+        triggerNextEpisodeOnce();
       }
     };
     const handleEnterPictureInPicture = () => setIsPictureInPicture(true);
@@ -721,8 +785,9 @@ const CustomVideoPlayer = ({
       if (seekFeedbackTimerRef.current) {
         clearTimeout(seekFeedbackTimerRef.current);
       }
+      clearSeekAccelerationState();
     };
-  }, [autoPlayEnabled, canGoNextEpisode, clearHideControlsTimer, clearTvAutoPlayTimer, getVideo, onNextEpisode, revealControls, selfContained, useNativeControls]);
+  }, [autoPlayEnabled, canGoNextEpisode, clearHideControlsTimer, clearSeekAccelerationState, clearTvAutoPlayTimer, getVideo, revealControls, selfContained, triggerNextEpisodeOnce, useNativeControls]);
 
   useEffect(() => {
     if (previousEpisodeIdentityRef.current === episodeIdentity) {
@@ -731,23 +796,16 @@ const CustomVideoPlayer = ({
 
     previousEpisodeIdentityRef.current = episodeIdentity;
     tvAutoPlayTriggeredRef.current = false;
+    nextEpisodeTriggeredRef.current = false;
     clearTvAutoPlayTimer();
     clearResumeAfterSeek();
-    if (seekAccelerationRef.current.intervalId) {
-      clearInterval(seekAccelerationRef.current.intervalId);
-    }
-    seekAccelerationRef.current.startTime = null;
-    seekAccelerationRef.current.intervalId = null;
-    seekAccelerationRef.current.tickCount = 0;
-    seekWasPlayingRef.current = false;
-    isSeekingRef.current = false;
-    seekTargetRef.current = 0;
+    clearSeekAccelerationState();
     setCurrentTime(0);
     setDuration(0);
     setSeekPreviewTime(null);
     setSeekFeedback(null);
     hideSeekTooltip();
-  }, [episodeIdentity, clearResumeAfterSeek, clearTvAutoPlayTimer, hideSeekTooltip]);
+  }, [episodeIdentity, clearResumeAfterSeek, clearSeekAccelerationState, clearTvAutoPlayTimer, hideSeekTooltip]);
 
   const handleTvCancelAutoPlay = useCallback(() => {
     tvAutoPlayTriggeredRef.current = true;
@@ -780,23 +838,40 @@ const CustomVideoPlayer = ({
         Boolean(playerRef.current);
       if (!isPlayerKeyEvent) return;
 
-      if (handleAutoplayCardKeyDown(event)) return;
-
       if (sidebarOpen) {
+        const sidebar = playerRef.current?.querySelector('.episode-sidebar');
+        const sidebarContainsFocus = Boolean(sidebar?.contains(document.activeElement));
+
         if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
           event.preventDefault();
-          const items = Array.from(playerRef.current?.querySelectorAll('.episode-sidebar button') || [])
+          event.stopPropagation();
+
+          const items = Array.from(sidebar?.querySelectorAll('button:not(:disabled)') || [])
             .filter(isVisibleFocusable);
-          moveFocusByPosition(items, event.key);
+
+          if (!sidebarContainsFocus) {
+            focusFirstSidebarControl();
+          } else {
+            moveFocusByPosition(items, event.key);
+          }
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          document.activeElement?.click?.();
+          event.stopPropagation();
+
+          if (sidebarContainsFocus) {
+            document.activeElement?.click?.();
+          } else {
+            focusFirstSidebarControl();
+          }
         } else if (event.key === "Backspace" || event.key === "Escape") {
           event.preventDefault();
+          event.stopPropagation();
           closeSidebar();
         }
         return;
       }
+
+      if (handleAutoplayCardKeyDown(event)) return;
 
       const activeElement = document.activeElement;
       const keyTarget = playerRef.current?.contains(activeElement) ? activeElement : event.target;
@@ -813,6 +888,7 @@ const CustomVideoPlayer = ({
       }
 
       const isInControls = document.activeElement?.closest('.custom-video-player__controls');
+      const shouldUseControlNavigation = Boolean(isInControls);
       const isCloseBtn = document.activeElement?.closest('.custom-video-player__close-btn');
       const autoplayCard = document.activeElement?.closest('.autoplay-card');
 
@@ -852,18 +928,18 @@ const CustomVideoPlayer = ({
           break;
         }
         case "ArrowLeft":
-          if (isTimelineFocused) {
-            startSeekAcceleration(-1);
-          } else if (isInControls) {
+          if (shouldUseControlNavigation) {
             moveControlFocus(-1);
+          } else {
+            startSeekAcceleration(-1);
           }
           revealControls();
           break;
         case "ArrowRight":
-          if (isTimelineFocused) {
-            startSeekAcceleration(1);
-          } else if (isInControls) {
+          if (shouldUseControlNavigation) {
             moveControlFocus(1);
+          } else {
+            startSeekAcceleration(1);
           }
           revealControls();
           break;
@@ -877,7 +953,7 @@ const CustomVideoPlayer = ({
               centerPlayBtn.focus();
             }
           } else if (isInControls) {
-            focusElement(playerRef.current, ".custom-video-player__progress");
+            focusTimeline();
           } else if (isCloseBtn) {
             const cp = playerRef.current?.querySelector(".custom-video-player__center-play");
             if (cp && cp.offsetParent !== null) cp.focus();
@@ -889,6 +965,8 @@ const CustomVideoPlayer = ({
             focusElement(playerRef.current, ".custom-video-player__control-btn--play");
           } else if (isCloseBtn) {
             focusElement(playerRef.current, ".custom-video-player__progress");
+          } else if (!isInControls) {
+            focusElement(playerRef.current, ".custom-video-player__control-btn--play");
           }
           break;
         case "Backspace":
@@ -917,7 +995,7 @@ const CustomVideoPlayer = ({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusFirstPlayerControl, handleAutoplayCardKeyDown, isPlaying, showControls]);
+  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusFirstPlayerControl, focusFirstSidebarControl, focusTimeline, handleAutoplayCardKeyDown, isPlaying, showControls]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -1359,7 +1437,7 @@ const CustomVideoPlayer = ({
           countdown={effectiveAutoPlayCountdown}
           autoPlayDuration={autoPlayDuration}
           isVisible={shouldShowCustomAutoPlayNotice}
-          onPlayNow={onNextEpisode}
+          onPlayNow={selfContained ? triggerNextEpisodeOnce : onNextEpisode}
           onCancel={selfContained ? handleTvCancelAutoPlay : onCancelAutoPlay}
         />
       )}

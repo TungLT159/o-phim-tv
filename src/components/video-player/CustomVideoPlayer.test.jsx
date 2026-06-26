@@ -347,7 +347,7 @@ test("renders custom auto-next overlay with progress fill", () => {
   expect(screen.getByLabelText("Phát tập tiếp theo ngay")).toBeInTheDocument();
   expect(screen.getByLabelText("Hủy tự động phát")).toBeInTheDocument();
   expect(
-    container.querySelector(".custom-video-player__autoplay-action"),
+    container.querySelector(".autoplay-card__button--play"),
   ).toHaveStyle({
     "--autoplay-duration": "10s",
   });
@@ -432,6 +432,30 @@ test("episode dialog starts on episode 1 and cycles up to close then back down",
   expect(closeButton).toHaveFocus();
 
   fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(episodeOne).toHaveFocus();
+});
+
+test("episode dialog keeps remote focus inside the popup", () => {
+  renderPlayerWithEpisodeDialog();
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+  const closeButton = screen.getByRole("button", { name: "Đóng danh sách tập" });
+  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+  const episodeTwo = screen.getByRole("button", { name: "Tập 2" });
+  const playButton = screen.getByLabelText("Phát video");
+
+  episodeTwo.focus();
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(episodeTwo).toHaveFocus();
+
+  closeButton.focus();
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(closeButton).toHaveFocus();
+
+  // Simulates browser/timing recovery when focus escapes the open modal.
+  playButton.focus();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
   expect(episodeOne).toHaveFocus();
 });
 
@@ -835,6 +859,51 @@ test("resumes playback after remote seek when already playing", () => {
   expect(video.play).toHaveBeenCalledTimes(1);
 });
 
+test("remote long-hold seek uses 10, 25, then 60 second steps", () => {
+  jest.useFakeTimers();
+  const { video } = renderPlayer();
+  let currentTimeValue = 0;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 1000);
+  fireEvent(video, new Event("durationchange"));
+  setMediaProperty(video, "paused", true);
+
+  const progress = screen.getByLabelText("Tua video");
+  progress.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  // Keydown starts a preview seek, but video.currentTime is not committed yet.
+  expect(currentTimeValue).toBe(0);
+
+  // Initial 10s preview + one under-1s 10s tick = 20s.
+  act(() => {
+    jest.advanceTimersByTime(150);
+  });
+  expect(screen.getByDisplayValue("20")).toBeInTheDocument();
+
+  // Next 900ms includes the first tick in the 25s tier, totaling 95s.
+  act(() => {
+    jest.advanceTimersByTime(900);
+  });
+  expect(screen.getByDisplayValue("95")).toBeInTheDocument();
+
+  // Next 1050ms includes six more 25s ticks and the first 60s tier tick, totaling 305s.
+  act(() => {
+    jest.advanceTimersByTime(1050);
+  });
+  expect(screen.getByDisplayValue("305")).toBeInTheDocument();
+
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(currentTimeValue).toBe(305);
+});
+
 test("does not commit a stale remote seek after switching episodes", () => {
   const videoRef = React.createRef();
   const { container, rerender } = render(
@@ -867,6 +936,33 @@ test("does not commit a stale remote seek after switching episodes", () => {
   fireEvent.keyUp(window, { key: "ArrowRight" });
 
   expect(video.currentTime).toBe(0);
+});
+
+test("restores audio state if seeked does not fire after a seek", () => {
+  jest.useFakeTimers();
+  const { video } = renderPlayer();
+  setMediaProperty(video, "duration", 120);
+  setMediaProperty(video, "currentTime", 20);
+  setMediaProperty(video, "paused", false);
+  setMediaProperty(video, "volume", 0.7);
+  setMediaProperty(video, "muted", false);
+  video.play = jest.fn(() => Promise.resolve());
+  video.pause = jest.fn();
+
+  const progress = screen.getByLabelText("Tua video");
+  fireEvent.change(progress, { target: { value: "40" } });
+  fireEvent.mouseUp(progress);
+
+  expect(video.muted).toBe(true);
+  expect(video.volume).toBe(0);
+
+  act(() => {
+    jest.advanceTimersByTime(1500);
+  });
+
+  expect(video.muted).toBe(false);
+  expect(video.volume).toBe(0.7);
+  expect(video.play).toHaveBeenCalled();
 });
 
 test("plays the next episode when playback ends and autoplay is enabled", () => {
@@ -916,6 +1012,31 @@ test("shows TV autoplay countdown near the end and focuses play now", () => {
   act(() => {
     jest.advanceTimersByTime(10000);
   });
+
+  expect(onNextEpisode).toHaveBeenCalledTimes(1);
+});
+
+test("TV autoplay countdown and ended event advance only once", () => {
+  jest.useFakeTimers();
+  const onNextEpisode = jest.fn();
+  const { container } = renderPlayerWithEpisodeControls({
+    movieId: "test-movie",
+    episode: { name: "1", slug: "tap-1", link_embed: "https://example.com/video.mp4" },
+    autoPlayEnabled: true,
+    canGoNextEpisode: true,
+    nextEpisodeName: "2",
+    onNextEpisode,
+  });
+  const video = container.querySelector("video");
+  setMediaProperty(video, "duration", 1200);
+  setMediaProperty(video, "currentTime", 1140);
+
+  fireEvent(video, new Event("timeupdate"));
+
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  fireEvent(video, new Event("ended"));
 
   expect(onNextEpisode).toHaveBeenCalledTimes(1);
 });
@@ -1057,21 +1178,163 @@ test("changes volume and mutes when volume reaches zero", () => {
   expect(video.muted).toBe(true);
 });
 
-test("remote arrows move focus across custom controls instead of seeking immediately", () => {
+test("remote left and right seek from the main player area", () => {
+  const { video } = renderPlayer();
+  let currentTimeValue = 30;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 120);
+
+  screen.getByLabelText("Phát video").focus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(video.currentTime).toBe(40);
+  expect(screen.getByLabelText("Phát video")).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  fireEvent.keyUp(window, { key: "ArrowLeft" });
+
+  expect(video.currentTime).toBe(30);
+  expect(screen.getByLabelText("Phát video")).toHaveFocus();
+});
+
+test("remote left from main player area commits seek to zero", () => {
+  const { video } = renderPlayer();
+  let currentTimeValue = 3;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 120);
+
+  screen.getByLabelText("Phát video").focus();
+
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  fireEvent.keyUp(window, { key: "ArrowLeft" });
+
+  expect(video.currentTime).toBe(0);
+  expect(screen.getByLabelText("Phát video")).toHaveFocus();
+});
+
+test("repeated remote seek commits the latest target once", () => {
+  jest.useFakeTimers();
+  const { video } = renderPlayer();
+  const seekWrites = [];
+  let currentTimeValue = 1000;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      seekWrites.push(value);
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 7200);
+
+  screen.getByLabelText("Phát video").focus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  act(() => {
+    jest.advanceTimersByTime(450);
+  });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(seekWrites).toEqual([1040]);
+});
+
+test("clears remote seek acceleration when unmounting mid seek", () => {
+  jest.useFakeTimers();
+  const { unmount } = renderPlayer();
+
+  screen.getByLabelText("Phát video").focus();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+
+  unmount();
+
+  act(() => {
+    jest.advanceTimersByTime(450);
+  });
+
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+test("remote down enters lower controls where left and right move focus", () => {
   const { video } = renderPlayer();
   video.currentTime = 30;
 
-  screen.getAllByLabelText("Phát")[1].focus();
+  screen.getByLabelText("Phát video").focus();
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(screen.getAllByLabelText("Phát")[1]).toHaveFocus();
 
   fireEvent.keyDown(window, { key: "ArrowRight" });
   expect(screen.getByLabelText("Tua lùi 10 giây")).toHaveFocus();
   expect(video.currentTime).toBe(30);
 
-  fireEvent.keyDown(window, { key: "Enter" });
-  expect(video.currentTime).toBe(20);
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(screen.getAllByLabelText("Phát")[1]).toHaveFocus();
+  expect(video.currentTime).toBe(30);
+});
 
-  fireEvent.keyDown(window, { key: "M" });
-  expect(video.muted).toBe(true);
+test("remote up leaves lower controls so left and right seek again", () => {
+  const { video } = renderPlayer();
+  let currentTimeValue = 30;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 120);
+
+  screen.getByLabelText("Phát video").focus();
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(screen.getAllByLabelText("Phát")[1]).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(screen.getByLabelText("Tua video")).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(video.currentTime).toBe(40);
+});
+
+test("remote right in lower controls moves focus without committing stale seek", () => {
+  const { video } = renderPlayer();
+  let currentTimeValue = 30;
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => currentTimeValue,
+    set: (value) => {
+      currentTimeValue = value;
+    },
+  });
+  setMediaProperty(video, "duration", 120);
+
+  screen.getByLabelText("Phát video").focus();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+  currentTimeValue = 30;
+
+  screen.getAllByLabelText("Phát")[1].focus();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  fireEvent.keyUp(window, { key: "ArrowRight" });
+
+  expect(screen.getByLabelText("Tua lùi 10 giây")).toHaveFocus();
+  expect(video.currentTime).toBe(30);
 });
 
 test("fullscreen player prevents remote arrows from scrolling the page when focus is outside controls", () => {
@@ -1100,6 +1363,39 @@ test("remote arrows move focus inside the episode dialog", () => {
 
   fireEvent.keyDown(window, { key: "Enter" });
   expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(playerProps.episodes[1]);
+});
+
+test("remote vertical arrows keep visible focus moving through episode dialog items", () => {
+  renderPlayerWithEpisodeDialog({
+    episodes: [
+      { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+      { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+      { name: "3", slug: "tap-3", episodeKey: "0:tap-3" },
+    ],
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+  const episodeTwo = screen.getByRole("button", { name: "Tập 2" });
+  const episodeThree = screen.getByRole("button", { name: "Tập 3" });
+
+  expect(episodeOne).toHaveFocus();
+  expect(episodeOne).toHaveClass("episode-sidebar__item--focused");
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(episodeTwo).toHaveFocus();
+  expect(episodeTwo).toHaveClass("episode-sidebar__item--focused");
+  expect(episodeOne).not.toHaveClass("episode-sidebar__item--focused");
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(episodeThree).toHaveFocus();
+  expect(episodeThree).toHaveClass("episode-sidebar__item--focused");
+  expect(episodeTwo).not.toHaveClass("episode-sidebar__item--focused");
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(episodeTwo).toHaveFocus();
+  expect(episodeTwo).toHaveClass("episode-sidebar__item--focused");
+  expect(episodeThree).not.toHaveClass("episode-sidebar__item--focused");
 });
 
 test("double tap on left half seeks backward 10 seconds", () => {
