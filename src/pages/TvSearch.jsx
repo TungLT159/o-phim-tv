@@ -3,15 +3,24 @@ import { Link } from 'react-router-dom';
 import tmdbApi from '../api/tmdbApi';
 import { useFocus, useFocusable } from '../context/FocusContext';
 import { fetchTMDBImages } from '../utils/tmdbImageFetcher';
+import {
+  clearTvSearchSession,
+  getTvSearchSession,
+  saveTvSearchSession,
+} from '../utils/tvSearchSessionCache';
 import './tv-search.scss';
 
 const DEFAULT_COLS = 5;
 const FALLBACK = '/poster-mau.png';
 
-function FocusCard({ item, row, col, onFirstRowArrowUp }) {
+function FocusCard({ item, row, col, onFirstRowArrowUp, onRememberResult }) {
   const { ref, focused } = useFocusable(1, row, col);
   const [poster, setPoster] = useState(FALLBACK);
   const [hasDomFocus, setHasDomFocus] = useState(false);
+
+  const rememberResult = useCallback(() => {
+    onRememberResult?.(item?.slug || '');
+  }, [item?.slug, onRememberResult]);
 
   const handleKeyDown = useCallback((event) => {
     if (event.key !== 'ArrowUp' || row !== 1) return;
@@ -21,19 +30,36 @@ function FocusCard({ item, row, col, onFirstRowArrowUp }) {
   }, [onFirstRowArrowUp, row]);
 
   useEffect(() => {
-    if (!item?.tmdb) return;
+    let active = true;
+
+    setPoster(FALLBACK);
+    if (!item?.tmdb) {
+      return () => {
+        active = false;
+      };
+    }
+
     fetchTMDBImages(item.tmdb).then(({ posterUrl }) => {
-      if (posterUrl) setPoster(posterUrl);
+      if (active && posterUrl) setPoster(posterUrl);
     });
-  }, [item]);
+
+    return () => {
+      active = false;
+    };
+  }, [item?.tmdb]);
 
   return (
     <Link
       to={`/movie/${item.slug}`}
       ref={ref}
       className={`tv-search-card ${focused && hasDomFocus ? 'tv-search-card--focused' : ''}`}
+      data-search-result-slug={item.slug || ''}
+      onClick={rememberResult}
       onKeyDown={handleKeyDown}
-      onFocus={() => setHasDomFocus(true)}
+      onFocus={() => {
+        setHasDomFocus(true);
+        rememberResult();
+      }}
       onBlur={() => setHasDomFocus(false)}
     >
       <div className="tv-search-card__poster">
@@ -48,29 +74,76 @@ function FocusCard({ item, row, col, onFirstRowArrowUp }) {
 }
 
 export default function TvSearch() {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
+  const initialSessionRef = useRef(null);
+  if (initialSessionRef.current === null) {
+    initialSessionRef.current = getTvSearchSession();
+  }
+  const initialSession = initialSessionRef.current;
+  const [query, setQuery] = useState(initialSession.query);
+  const [results, setResults] = useState(initialSession.results);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [searched, setSearched] = useState(initialSession.searched);
   const [gridCols, setGridCols] = useState(DEFAULT_COLS);
   const inputRef = useRef(null);
   const gridRef = useRef(null);
+  const latestSearchRequestIdRef = useRef(0);
+  const hasRestoredSessionRef = useRef(false);
   const { skipToZone } = useFocus();
 
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 400);
-  }, []);
+    const shouldAutoFocusInput = !initialSession.lastFocusedSlug && !initialSession.scrollY;
+    const focusTimer = shouldAutoFocusInput
+      ? setTimeout(() => inputRef.current?.focus(), 400)
+      : null;
+
+    return () => {
+      if (focusTimer) clearTimeout(focusTimer);
+      latestSearchRequestIdRef.current += 1;
+    };
+  }, [initialSession.lastFocusedSlug, initialSession.scrollY]);
 
   const handleSearch = useCallback(async (val) => {
-    setQuery(val);
-    if (!val.trim()) { setResults([]); setSearched(false); return; }
+    const nextQuery = val;
+    setQuery(nextQuery);
+    if (!nextQuery.trim()) {
+      latestSearchRequestIdRef.current += 1;
+      setResults([]);
+      setSearched(false);
+      setLoading(false);
+      clearTvSearchSession();
+      return;
+    }
+    const requestId = latestSearchRequestIdRef.current + 1;
+    latestSearchRequestIdRef.current = requestId;
     setLoading(true);
     setSearched(true);
     try {
-      const res = await tmdbApi.search('movie', { keyword: val, limit: 30 });
-      setResults(res.data?.items || []);
-    } catch { setResults([]); }
-    setLoading(false);
+      const res = await tmdbApi.search('movie', { keyword: nextQuery, limit: 30 });
+      if (requestId !== latestSearchRequestIdRef.current) return;
+      const nextResults = res.data?.items || [];
+      setResults(nextResults);
+      saveTvSearchSession({
+        query: nextQuery,
+        results: nextResults,
+        searched: true,
+        lastFocusedSlug: '',
+        scrollY: 0,
+      });
+    } catch {
+      if (requestId !== latestSearchRequestIdRef.current) return;
+      setResults([]);
+      saveTvSearchSession({
+        query: nextQuery,
+        results: [],
+        searched: true,
+        lastFocusedSlug: '',
+        scrollY: 0,
+      });
+    } finally {
+      if (requestId === latestSearchRequestIdRef.current) {
+        setLoading(false);
+      }
+    }
   }, []);
 
   const focusFirstResult = useCallback(() => {
@@ -81,6 +154,38 @@ export default function TvSearch() {
   const focusSearchInput = useCallback(() => {
     inputRef.current?.focus?.();
   }, []);
+
+  const rememberResult = useCallback((slug) => {
+    saveTvSearchSession({ lastFocusedSlug: slug, scrollY: window.scrollY || 0 });
+  }, []);
+
+  useEffect(() => {
+    if (results.length === 0) return undefined;
+    if (hasRestoredSessionRef.current) return undefined;
+
+    const { lastFocusedSlug, scrollY } = initialSessionRef.current;
+    if (!lastFocusedSlug && !scrollY) return undefined;
+    hasRestoredSessionRef.current = true;
+
+    const restoreTimer = setTimeout(() => {
+      if (scrollY > 0) {
+        window.scrollTo?.(0, scrollY);
+      }
+
+      if (lastFocusedSlug) {
+        const cards = Array.from(gridRef.current?.querySelectorAll?.('.tv-search-card') || []);
+        const focusedResult = cards.find((card) => card.dataset.searchResultSlug === lastFocusedSlug);
+        if (focusedResult) {
+          focusedResult.focus?.();
+          return;
+        }
+      }
+
+      inputRef.current?.focus?.();
+    }, 0);
+
+    return () => clearTimeout(restoreTimer);
+  }, [results.length]);
 
   const updateGridColumns = useCallback(() => {
     const cards = Array.from(gridRef.current?.querySelectorAll?.('.tv-search-card') || []);
@@ -162,6 +267,7 @@ export default function TvSearch() {
                   row={row}
                   col={col}
                   onFirstRowArrowUp={focusSearchInput}
+                  onRememberResult={rememberResult}
                 />
               );
             })}
