@@ -93,12 +93,14 @@ $transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &__logo {
+    width: $sidebar-collapsed;
     padding: 20px 0 12px;
 
     a {
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 100%;
       text-decoration: none;
       border-radius: 0;
       padding: 0;
@@ -111,6 +113,7 @@ $transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
       span {
+        width: 0;
         font-size: 1.3rem;
         font-weight: 700;
         color: #fff;
@@ -130,17 +133,20 @@ $transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &--expanded &__logo {
+    width: auto;
     padding: 24px 20px 16px;
 
     a {
       justify-content: flex-start;
       gap: 12px;
+      width: auto;
 
       img {
         height: 40px;
       }
 
       span {
+        width: auto;
         margin-left: 12px;
       }
     }

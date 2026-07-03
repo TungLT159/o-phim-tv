@@ -1,7 +1,7 @@
 import React from "react";
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { FocusProvider, useFocusable } from "./FocusContext";
+import { FocusProvider, useFocus, useFocusable } from "./FocusContext";
 
 jest.mock("../tauri-bridge", () => ({
   isTauri: () => true,
@@ -54,6 +54,209 @@ test("initializes focus to the first registered TV item when the default row is 
   );
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Phát" })).toHaveFocus());
+});
+
+test("focuses the default hero target when it registers after provider mount", async () => {
+  function DelayedHeroButton() {
+    const [ready, setReady] = React.useState(false);
+
+    React.useEffect(() => {
+      setReady(true);
+    }, []);
+
+    if (!ready) return null;
+
+    return <TvButton row={0} col={0}>Xem ngay</TvButton>;
+  }
+
+  render(
+    <FocusProvider>
+      <DelayedHeroButton />
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+});
+
+test("focuses the late active target when another element already has DOM focus", async () => {
+  function DelayedHeroButton() {
+    const [ready, setReady] = React.useState(false);
+
+    React.useEffect(() => {
+      screen.getByRole("textbox", { name: "Search" }).focus();
+      setReady(true);
+    }, []);
+
+    if (!ready) return null;
+
+    return <TvButton row={0} col={0}>Xem ngay</TvButton>;
+  }
+
+  render(
+    <FocusProvider>
+      <input aria-label="Search" />
+      <DelayedHeroButton />
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+});
+
+test("focuses the active target when its DOM node appears after the hook mounts", async () => {
+  function LoadingThenButton() {
+    const { ref } = useFocusable(1, 0, 0);
+    const [ready, setReady] = React.useState(false);
+
+    React.useEffect(() => {
+      screen.getByRole("textbox", { name: "Search" }).focus();
+      setReady(true);
+    }, []);
+
+    if (!ready) return null;
+
+    return <button ref={ref} type="button">Xem ngay</button>;
+  }
+
+  render(
+    <FocusProvider>
+      <input aria-label="Search" />
+      <LoadingThenButton />
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+});
+
+test("does not steal focus from text input on active target re-render", async () => {
+  function ReRenderingActiveButton() {
+    const { ref } = useFocusable(1, 0, 0);
+    const [label, setLabel] = React.useState("Xem ngay");
+
+    React.useEffect(() => {
+      const timer = setTimeout(() => setLabel("Xem ngay cập nhật"), 0);
+      return () => clearTimeout(timer);
+    }, []);
+
+    return <button ref={ref} type="button">{label}</button>;
+  }
+
+  render(
+    <FocusProvider>
+      <input aria-label="Search" />
+      <ReRenderingActiveButton />
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+
+  const input = screen.getByRole("textbox", { name: "Search" });
+  input.focus();
+
+  await screen.findByRole("button", { name: "Xem ngay cập nhật" });
+
+  expect(input).toHaveFocus();
+});
+
+test("refocuses a previously synced target when navigation returns to it from another row", async () => {
+  render(
+    <FocusProvider>
+      <input aria-label="Search" />
+      <PositionedTvButton row={0} col={0} rect={{ left: 500, top: 100, width: 120, height: 50 }}>
+        Xem ngay
+      </PositionedTvButton>
+      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
+        Phim 1
+      </PositionedTvButton>
+    </FocusProvider>,
+  );
+
+  const heroButton = await screen.findByRole("button", { name: "Xem ngay" });
+  await waitFor(() => expect(heroButton).toHaveFocus());
+
+  fireEvent.keyDown(document, { key: "ArrowDown" });
+  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
+
+  screen.getByRole("textbox", { name: "Search" }).focus();
+
+  fireEvent.keyDown(document, { key: "ArrowUp" });
+
+  await waitFor(() => expect(heroButton).toHaveFocus());
+});
+
+test("does not fall back to sidebar while the default hero target is still loading", async () => {
+  function PendingHeroTarget() {
+    useFocusable(1, 0, 0);
+    return null;
+  }
+
+  function FocusStateProbe() {
+    const { state } = useFocus();
+    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
+  }
+
+
+  render(
+    <FocusProvider>
+      <FocusStateProbe />
+      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 60, height: 52 }}>
+        Trang chủ
+      </PositionedTvButton>
+      <PendingHeroTarget />
+    </FocusProvider>,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
+  expect(screen.getByRole("button", { name: "Trang chủ" })).not.toHaveFocus();
+});
+
+test("does not fall back to sidebar before the default hero target mounts", async () => {
+  function FocusStateProbe() {
+    const { state } = useFocus();
+    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
+  }
+
+  render(
+    <FocusProvider>
+      <FocusStateProbe />
+      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 60, height: 52 }}>
+        Trang chủ
+      </PositionedTvButton>
+    </FocusProvider>,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
+  expect(screen.getByRole("button", { name: "Trang chủ" })).not.toHaveFocus();
+});
+
+test("does not fall back to continue watching while the default hero target is still loading", async () => {
+  function PendingHeroTarget() {
+    useFocusable(1, 0, 0);
+    return null;
+  }
+
+  function FocusStateProbe() {
+    const { state } = useFocus();
+    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
+  }
+
+  render(
+    <FocusProvider>
+      <FocusStateProbe />
+      <PositionedTvButton row={1} col={0} rect={{ left: 240, top: 360, width: 160, height: 240 }}>
+        Tiếp tục xem
+      </PositionedTvButton>
+      <PendingHeroTarget />
+    </FocusProvider>,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
+  expect(screen.getByRole("button", { name: "Tiếp tục xem" })).not.toHaveFocus();
 });
 
 test("moves from detail play button into episode rows and activates selected episode", async () => {

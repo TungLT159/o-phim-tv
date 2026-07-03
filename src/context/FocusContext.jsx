@@ -15,33 +15,35 @@ const FocusContext = createContext(null);
 // Grid of focusable refs: grid[zone][row][col] = ref
 // zone 0 = sidebar, zone 1 = content
 
-const initialState = {
-  zone: 1,
-  row: 0,
-  col: 0,
-  rowMemory: {},
-  grid: { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} },
-  maxRows: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-  isActive: false,
-  activeTrap: null,
-  savedFocus: null,
-  // NEW: Acceleration state
-  accelerationState: {
-    activeKey: null,
-    startTime: null,
-    stepMultiplier: 1,
-    intervalId: null,
-  },
-  // NEW: Zone skip tracking
-  lastFocusPerZone: {
-    0: { row: 0, col: 0 },
-    1: { row: 0, col: 0 },
-    2: { row: 0, col: 0 },
-    3: { row: 0, col: 0 },
-    4: { row: 0, col: 0 },
-    5: { row: 0, col: 0 },
-  },
-};
+function createInitialState() {
+  return {
+    zone: 1,
+    row: 0,
+    col: 0,
+    rowMemory: {},
+    grid: { 0: {}, 1: {}, 2: {}, 3: {}, 4: {}, 5: {} },
+    maxRows: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    isActive: false,
+    activeTrap: null,
+    savedFocus: null,
+    // NEW: Acceleration state
+    accelerationState: {
+      activeKey: null,
+      startTime: null,
+      stepMultiplier: 1,
+      intervalId: null,
+    },
+    // NEW: Zone skip tracking
+    lastFocusPerZone: {
+      0: { row: 0, col: 0 },
+      1: { row: 0, col: 0 },
+      2: { row: 0, col: 0 },
+      3: { row: 0, col: 0 },
+      4: { row: 0, col: 0 },
+      5: { row: 0, col: 0 },
+    },
+  };
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -431,13 +433,11 @@ function getZoneEntries(zoneGrid) {
 }
 
 function findFirstPosition(grid, preferredZone) {
-  const zones = [preferredZone, ...Object.keys(grid || {}).map(Number).filter((zone) => zone !== preferredZone)];
-  for (const zone of zones) {
-    const entries = getZoneEntries(grid?.[zone]).sort((a, b) => a.row - b.row || a.col - b.col);
-    if (entries.length) {
-      return { zone, row: entries[0].row, col: entries[0].col };
-    }
+  const entries = getZoneEntries(grid?.[preferredZone]).sort((a, b) => a.row - b.row || a.col - b.col);
+  if (entries.length) {
+    return { zone: preferredZone, row: entries[0].row, col: entries[0].col };
   }
+
   return null;
 }
 
@@ -498,7 +498,7 @@ function findSpatialTarget(grid, zone, row, col, direction) {
 }
 
 export function FocusProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
   const refMap = useRef(new Map());
   const prevStateRef = useRef({ zone: 1, row: 0, col: 0 });
   const accelerationIntervalRef = useRef(null);
@@ -581,6 +581,11 @@ export function FocusProvider({ children }) {
         col: state.col,
       };
     } else {
+      if (domRef && retryCount < 5) {
+        requestAnimationFrame(() => focusCurrent(scrollBehavior, retryCount + 1));
+        return;
+      }
+
       const fallback = findFirstPosition(state.grid, state.zone);
       if (fallback && retryCount === 0) {
         dispatch({
@@ -711,8 +716,12 @@ export function useOptionalFocus() {
 
 export function useFocusable(zone, row, col) {
   const ref = useRef(null);
+  const lastFocusSyncElementRef = useRef(null);
+  const wasFocusedRef = useRef(false);
   const ctx = useOptionalFocus();
   const { register, unregister, setFocusPosition, state } = ctx || {};
+
+  const focused = state?.zone === zone && state?.row === row && state?.col === col;
 
   useEffect(() => {
     if (!register || !unregister) return undefined;
@@ -727,7 +736,36 @@ export function useFocusable(zone, row, col) {
     };
   }, [zone, row, col, register, unregister, setFocusPosition]);
 
-  const focused = state?.zone === zone && state?.row === row && state?.col === col;
+  useEffect(() => {
+    const element = ref.current;
+    const wasFocused = wasFocusedRef.current;
+    wasFocusedRef.current = focused;
+
+    if (!focused || !element) return;
+
+    const activeElement = document.activeElement;
+    const activeElementIsTextEditable = activeElement &&
+      activeElement !== document.body &&
+      (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      );
+
+    if (
+      wasFocused &&
+      lastFocusSyncElementRef.current === element &&
+      activeElementIsTextEditable
+    ) {
+      return;
+    }
+
+    if (activeElement !== element) {
+      element.focus();
+    }
+
+    lastFocusSyncElementRef.current = element;
+  });
 
   return { ref, focused, zone: state?.zone, row: state?.row, col: state?.col };
 }

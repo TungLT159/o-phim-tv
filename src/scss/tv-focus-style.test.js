@@ -53,6 +53,17 @@ describe('TV focus styling', () => {
     expect(contents).not.toMatch(/&--focused\s*\{[\s\S]*\.tv-search-card__poster\s*\{/);
   });
 
+  test('centers the collapsed sidebar logo within the rail', () => {
+    const contents = read('components/header/tv-sidebar.scss');
+
+    expect(contents).toMatch(/&__logo\s*\{[\s\S]*width:\s*\$sidebar-collapsed/i);
+    expect(contents).toMatch(/&__logo\s*\{[\s\S]*a\s*\{[\s\S]*width:\s*100%/i);
+    expect(contents).toMatch(/&__logo\s*\{[\s\S]*span\s*\{[\s\S]*width:\s*0/i);
+    expect(contents).toMatch(/&--expanded &__logo\s*\{[\s\S]*width:\s*auto/i);
+    expect(contents).toMatch(/&--expanded &__logo\s*\{[\s\S]*a\s*\{[^}]*width:\s*auto/i);
+    expect(contents).toMatch(/&--expanded &__logo\s*\{[\s\S]*span\s*\{[^}]*width:\s*auto/i);
+  });
+
   test('does not draw focus borders on known child controls', () => {
     const globalFocus = read('scss/tv-focus.scss');
     const heroFocus = read('components/tv-hero/tv-hero.scss');
