@@ -5,28 +5,28 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
     <meta name="theme-color" content="#000000" />
-    
+
     <!-- SEO Meta Tags -->
     <meta name="description" content="Xem phim online miễn phí chất lượng HD, phim chiếu rạp, phim lẻ, phim bộ, phim hoạt hình mới nhất. Cập nhật liên tục, xem phim nhanh không quảng cáo." />
     <meta name="keywords" content="xem phim online, phim HD, phim chiếu rạp, phim lẻ, phim bộ, phim hoạt hình, phim mới, xem phim miễn phí" />
     <meta name="author" content="Ổ Phim" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    
+
     <!-- Open Graph Meta Tags -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Ổ Phim" />
     <meta property="og:locale" content="vi_VN" />
-    
+
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@ophim" />
-    
+
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    
+
     <!-- Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    
+
     <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://api.themoviedb.org" />
     <link rel="preconnect" href="https://ophim123.netlify.app" />
@@ -34,14 +34,48 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://unpkg.com" />
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    
+
     <!-- Boxicons CDN -->
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-    
+
     <!-- Boxicons Border Fix -->
     <link rel="stylesheet" href="%PUBLIC_URL%/boxicons-fix.css">
-    
+
     <title>Ổ Phim - Xem Phim Online Miễn Phí Chất Lượng HD</title>
+
+    <!-- Preload critical assets -->
+    <link rel="preload" href="%PUBLIC_URL%/logo512.png" as="image" />
+
+    <!-- Inline critical CSS to prevent white flash -->
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050608;
+        background: linear-gradient(135deg, #050608 0%, #101018 48%, #020204 100%);
+      }
+
+      #root {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+      }
+
+      /* Fallback splash screen nếu JS chưa load */
+      #root:empty::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at center, rgba(231, 47, 47, 0.22), transparent 36rem),
+          radial-gradient(circle at 50% 45%, rgba(255, 190, 92, 0.14), transparent 22rem),
+          linear-gradient(135deg, #050608 0%, #101018 48%, #020204 100%);
+        z-index: 9999;
+      }
+    </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -8,6 +8,7 @@ import {
 import {
   getEpisodeLink,
 } from "../../utils/episodeLinkManager";
+import { apiBridge } from "../../tauri-bridge";
 import CustomVideoPlayerChrome from "./CustomVideoPlayerChrome";
 import EpisodeSidebar from "./episode-sidebar/EpisodeSidebar";
 import InfoOverlay from "./info-overlay/InfoOverlay";
@@ -24,6 +25,78 @@ const shouldShowFpsDebug = () => {
   if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("debugFps") === "1";
 };
+
+const isAndroidRuntime = () => {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent || "");
+};
+
+class TauriHlsLoader {
+  load(context, config, callbacks) {
+    this.context = context;
+    this.callbacks = callbacks;
+    this.aborted = false;
+    const responseType = context.responseType || "text";
+    const startedAt = performance.now?.() || Date.now();
+
+    apiBridge.fetchHlsAsset(context.url, responseType)
+      .then(({ data, finalUrl }) => {
+        if (this.aborted) return;
+        const loadedAt = performance.now?.() || Date.now();
+        const payload = responseType === "arraybuffer"
+          ? new Uint8Array(data).buffer
+          : data;
+        callbacks.onSuccess(
+          { url: finalUrl || context.url, data: payload },
+          {
+            aborted: false,
+            loaded: Array.isArray(data) ? data.length : String(data || "").length,
+            retry: 0,
+            total: Array.isArray(data) ? data.length : String(data || "").length,
+            chunkCount: 1,
+            bwEstimate: 0,
+            loading: { start: startedAt, first: loadedAt, end: loadedAt },
+            parsing: { start: 0, end: 0 },
+            buffering: { start: 0, first: 0, end: 0 },
+          },
+          context,
+          null,
+        );
+      })
+      .catch((error) => {
+        if (this.aborted) return;
+        callbacks.onError(
+          { code: 0, text: error?.message || "Tauri HLS loader error" },
+          context,
+          null,
+          null,
+        );
+      });
+  }
+
+  abort() {
+    this.aborted = true;
+  }
+
+  destroy() {
+    this.abort();
+    this.callbacks = null;
+    this.context = null;
+  }
+}
+
+const createHlsConfig = () => ({
+  enableWorker: !isAndroidRuntime(),
+  lowLatencyMode: false,
+  maxBufferLength: 60,
+  maxMaxBufferLength: 120,
+  backBufferLength: 30,
+  debug: false,
+  startPosition: -1,
+  autoStartLoad: true,
+  capLevelToPlayerSize: true,
+  ...(isAndroidRuntime() ? { loader: TauriHlsLoader } : {}),
+});
 
 const formatFpsMetric = (value) => {
   if (!Number.isFinite(value)) return "0.0";
@@ -45,6 +118,18 @@ const isVisibleFocusable = (element) => {
   }
 
   return element.offsetParent !== null || element.getClientRects?.().length > 0 || process.env.NODE_ENV === "test";
+};
+
+const isConcretePlayerFocusTarget = (player, element) => {
+  if (!player || !element || element === document.body || !player.contains(element)) {
+    return false;
+  }
+
+  return Boolean(
+    element.matches?.(
+      'button:not(:disabled), input:not(:disabled), [role="button"], [data-tv-focusable="true"]',
+    ),
+  );
 };
 
 const getCenter = (element) => {
@@ -492,21 +577,6 @@ const CustomVideoPlayer = ({
     [closeSidebar, onSelectEpisode],
   );
 
-  const focusFirstPlayerControl = useCallback(() => {
-    const root = playerRef.current;
-    if (!root) return;
-    const centerPlayBtn = root.querySelector(".custom-video-player__center-play");
-    if (isVisibleFocusable(centerPlayBtn)) {
-      centerPlayBtn.focus();
-      return;
-    }
-
-    const playBtn = root.querySelector(".custom-video-player__control-btn--play");
-    if (playBtn && !playBtn.hasAttribute("disabled")) {
-      playBtn.focus();
-    }
-  }, []);
-
   const moveControlFocus = useCallback((direction) => {
     const root = playerRef.current;
     if (!root) return;
@@ -540,6 +610,27 @@ const CustomVideoPlayer = ({
   const focusTimeline = useCallback(() => {
     return focusElement(playerRef.current, ".custom-video-player__progress");
   }, []);
+
+  const focusDefaultPlayerTarget = useCallback(() => {
+    const root = playerRef.current;
+    if (!root) return false;
+
+    if (focusTimeline()) return true;
+
+    const centerPlayBtn = root.querySelector(".custom-video-player__center-play");
+    if (isVisibleFocusable(centerPlayBtn)) {
+      centerPlayBtn.focus();
+      return true;
+    }
+
+    const playBtn = root.querySelector(".custom-video-player__control-btn--play");
+    if (isVisibleFocusable(playBtn)) {
+      playBtn.focus();
+      return true;
+    }
+
+    return false;
+  }, [focusTimeline]);
 
   const focusAutoplayCardButton = useCallback((direction) => {
     const root = playerRef.current;
@@ -824,9 +915,9 @@ const CustomVideoPlayer = ({
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(focusFirstPlayerControl, 0);
+    const timer = setTimeout(focusDefaultPlayerTarget, 0);
     return () => clearTimeout(timer);
-  }, [focusFirstPlayerControl]);
+  }, [focusDefaultPlayerTarget]);
 
 
 
@@ -913,14 +1004,14 @@ const CustomVideoPlayer = ({
         (!playerRef.current?.contains(document.activeElement) || (isPlaying && !showControls))
       ) {
         revealControls();
-        focusFirstPlayerControl();
+        focusDefaultPlayerTarget();
         return;
       }
 
       switch (event.key) {
         case "Enter":
         case " ": {
-          if (playerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) {
+          if (isConcretePlayerFocusTarget(playerRef.current, document.activeElement)) {
             document.activeElement.click?.();
           } else {
             togglePlay();
@@ -995,7 +1086,7 @@ const CustomVideoPlayer = ({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusFirstPlayerControl, focusFirstSidebarControl, focusTimeline, handleAutoplayCardKeyDown, isPlaying, showControls]);
+  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusDefaultPlayerTarget, focusFirstSidebarControl, focusTimeline, handleAutoplayCardKeyDown, isPlaying, showControls]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;
@@ -1091,37 +1182,48 @@ const CustomVideoPlayer = ({
           networkState: video.networkState
         });
 
+        const nativeHls =
+          sourceUrl && video.canPlayType("application/vnd.apple.mpegurl");
+
+        const fallbackToNativeSource = (reason) => {
+          if (!sourceUrl || cancelled) return;
+          console.warn('[CustomVideoPlayer] falling back to native HLS', reason);
+          if (hls) {
+            hls.destroy();
+            hls = null;
+          }
+          video.src = sourceUrl;
+          video.load();
+          canPlayHandler = playAndPrefetch;
+          video.addEventListener("canplay", canPlayHandler, { once: true });
+        };
+
+        if (sourceUrl && isAndroidRuntime() && nativeHls) {
+          console.log('[CustomVideoPlayer] using Android native HLS', sourceUrl.substring(0, 80));
+          video.src = sourceUrl;
+          video.load();
+          canPlayHandler = playAndPrefetch;
+          video.addEventListener("canplay", canPlayHandler, { once: true });
+          return;
+        }
+
         if (sourceUrl && Hls.isSupported()) {
           console.log('[CustomVideoPlayer] setting up HLS.js', sourceUrl.substring(0, 80));
           video.removeAttribute("src");
           video.load();
 
-          hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: false,
-            maxBufferLength: 60,
-            maxMaxBufferLength: 120,
-            backBufferLength: 30,
-            // Thêm config để xử lý video tốt hơn
-            debug: false,
-            startPosition: -1,
-            autoStartLoad: true,
-            capLevelToPlayerSize: true,
-          });
+          hls = new Hls(createHlsConfig());
           
           manifestTimeout = setTimeout(() => {
             if (cancelled) return;
             console.error('[CustomVideoPlayer] HLS manifest timeout, trying direct src');
-            if (hls) { hls.destroy(); hls = null; }
-            video.src = sourceUrl;
-            video.load();
-            video.play().catch((e) => console.error('[CustomVideoPlayer] direct play error:', e));
+            fallbackToNativeSource('manifest timeout');
           }, 15000);
           
           hls.loadSource(sourceUrl);
           hls.attachMedia(video);
 
-          if (sourceUrl) {
+          if (sourceUrl && !isAndroidRuntime()) {
             setThumbnailSource(sourceUrl, true);
           }
 
@@ -1160,6 +1262,10 @@ const CustomVideoPlayer = ({
             
             if (data.fatal) {
               clearTimeout(manifestTimeout);
+              if (isAndroidRuntime()) {
+                fallbackToNativeSource(data.details || data.type || 'fatal HLS error');
+                return;
+              }
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   console.error('[CustomVideoPlayer] Fatal network error, trying to recover');
@@ -1180,9 +1286,7 @@ const CustomVideoPlayer = ({
           return;
         }
 
-        const nativeHls =
-          sourceUrl && video.canPlayType("application/vnd.apple.mpegurl");
-        const playbackUrl = nativeHls ? sourceUrl : embedUrl;
+        const playbackUrl = sourceUrl || embedUrl;
 
         console.log('[CustomVideoPlayer] native HLS fallback', { nativeHls, playbackUrl: playbackUrl?.substring(0, 80) });
 
@@ -1194,7 +1298,7 @@ const CustomVideoPlayer = ({
 
         video.src = playbackUrl;
         video.load();
-        if (playbackUrl) {
+        if (playbackUrl && !isAndroidRuntime()) {
           setThumbnailSource(playbackUrl, false);
         }
         canPlayHandler = playAndPrefetch;
@@ -1339,7 +1443,7 @@ const CustomVideoPlayer = ({
         webkit-playsinline="true"
         controlsList="nodownload"
         preload="auto"
-        crossOrigin="anonymous"
+        crossOrigin={isAndroidRuntime() ? undefined : "anonymous"}
         style={{ width: '100%', height: '100%', objectFit: 'contain' }}
       >
         Trình duyệt của bạn không hỗ trợ video HTML5.

@@ -19,6 +19,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             api::fetch_movie_detail,
             api::fetch_episode,
+            api::fetch_hls_asset,
             stream::create_stream_token,
             stream::resolve_stream_token,
             watch_history::get_watch_history,

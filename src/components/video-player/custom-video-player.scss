@@ -7,6 +7,28 @@
   background: #050505;
   color: #fff;
 
+  // Ẩn tất cả scrollbar trong player
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE/Edge
+
+  &::-webkit-scrollbar {
+    display: none; // Chrome/Safari/Opera
+    width: 0;
+    height: 0;
+  }
+
+  // Ẩn scrollbar cho tất cả phần tử con
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+
   video {
     position: absolute;
     inset: 0;
@@ -420,9 +442,7 @@
 }
 
 @media (hover: none) and (pointer: coarse) {
-@import '../../scss/tv-variables.scss';
-
-.custom-video-player {
+  .custom-video-player {
     touch-action: manipulation;
   }
 

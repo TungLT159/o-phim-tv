@@ -4,7 +4,7 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  
+
   &.bx, &[class^='bx-'], &[class*=' bx-'] {
     box-sizing: content-box !important;
   }
@@ -12,6 +12,16 @@
 
 html{
   font-size: 100%;
+
+  // Ẩn scrollbar cho toàn bộ app (TV mode)
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE/Edge
+
+  &::-webkit-scrollbar {
+    display: none; // Chrome/Safari/Opera
+    width: 0;
+    height: 0;
+  }
 
   @include tablet{
     font-size: 80%;
@@ -33,8 +43,18 @@ body {
   background-color: $body-bg;
   color: $txt-color;
 
+  // Ẩn scrollbar cho body (TV mode)
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE/Edge
+
+  &::-webkit-scrollbar {
+    display: none; // Chrome/Safari/Opera
+    width: 0;
+    height: 0;
+  }
+
   @include mobile{
-    margin-bottom: 3rem; 
+    margin-bottom: 3rem;
   }
 }
 
@@ -96,7 +116,7 @@ iframe{
   height: auto !important;
   box-shadow: none !important;
   text-decoration: none !important;
-  
+
   &::before, &::after {
     border: none !important;
     outline: none !important;
@@ -120,7 +140,7 @@ iframe{
 
 .section{
   padding: 0 2rem;
-} 
+}
 
 .section__header{
   @include flex(center, space-between);

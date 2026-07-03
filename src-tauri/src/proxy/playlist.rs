@@ -13,27 +13,27 @@ pub fn parse_master_playlist(content: &str, base_url: &str) -> Vec<VariantStream
         }
 
         if trimmed.starts_with("#EXT-X-STREAM-INF:") {
-            current_bandwidth = trimmed
-                .split(|c| c == ',' || c == ' ')
-                .find_map(|part| {
-                    let part = part.trim();
-                    if let Some(bw) = part.strip_prefix("BANDWIDTH=") {
-                        bw.parse::<u64>().ok()
-                    } else {
-                        None
-                    }
-                });
+            let attributes = trimmed
+                .strip_prefix("#EXT-X-STREAM-INF:")
+                .unwrap_or(trimmed);
 
-            current_resolution = trimmed
-                .split(|c| c == ',' || c == ' ')
-                .find_map(|part| {
-                    let part = part.trim();
-                    if let Some(res) = part.strip_prefix("RESOLUTION=") {
-                        Some(res.to_string())
-                    } else {
-                        None
-                    }
-                });
+            current_bandwidth = attributes.split(|c| c == ',' || c == ' ').find_map(|part| {
+                let part = part.trim();
+                if let Some(bw) = part.strip_prefix("BANDWIDTH=") {
+                    bw.parse::<u64>().ok()
+                } else {
+                    None
+                }
+            });
+
+            current_resolution = attributes.split(|c| c == ',' || c == ' ').find_map(|part| {
+                let part = part.trim();
+                if let Some(res) = part.strip_prefix("RESOLUTION=") {
+                    Some(res.to_string())
+                } else {
+                    None
+                }
+            });
         } else if !trimmed.starts_with('#') {
             if let (Some(bandwidth), Some(resolution)) =
                 (current_bandwidth.take(), current_resolution.take())
@@ -97,7 +97,10 @@ fn resolve_url(value: &str, base_url: &str) -> String {
     if value.starts_with("http://") || value.starts_with("https://") {
         value.to_string()
     } else {
-        let base = base_url.trim_end_matches('/');
+        let base = base_url
+            .rsplit_once('/')
+            .map(|(prefix, _)| prefix)
+            .unwrap_or_else(|| base_url.trim_end_matches('/'));
         let path = value.trim_start_matches('/');
         format!("{}/{}", base, path)
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import tmdbApi from '../../api/tmdbApi';
+import apiConfig from '../../api/apiConfig';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 import { useMovieDetail } from './useMovieDetail';
 import { useEpisodeCatalog } from './useEpisodeCatalog';
@@ -40,9 +41,9 @@ export default function TvDetail() {
   const { id } = useParams();
   const location = useLocation();
   const [playing, setPlaying] = useState(false);
-  const [backdrop, setBackdrop] = useState('');
-  const [overview, setOverview] = useState('');
   const [similar, setSimilar] = useState([]);
+  const [tmdbBackdrop, setTmdbBackdrop] = useState('');
+  const [tmdbOverview, setTmdbOverview] = useState('');
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
   const [savedProgress, setSavedProgress] = useState(null);
   const videoRef = useRef(null);
@@ -77,13 +78,34 @@ export default function TvDetail() {
     [allEpisodeGroups],
   );
 
-  useEffect(() => {
-    if (!movie?.tmdb) return;
-    fetchTMDBImages(movie.tmdb).then(({ backdropUrl, overview: desc }) => {
-      if (backdropUrl) setBackdrop(backdropUrl);
-      if (desc) setOverview(desc);
-    });
+  const fallbackBackdrop = useMemo(() => {
+    const imagePath = movie?.thumb_url || movie?.poster_url;
+    return imagePath ? apiConfig.originalImage(imagePath) : '';
   }, [movie]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    setTmdbBackdrop('');
+    setTmdbOverview('');
+
+    if (!movie?.tmdb) return undefined;
+
+    fetchTMDBImages(movie.tmdb)
+      .then(({ backdropUrl, overview }) => {
+        if (isCancelled) return;
+        setTmdbBackdrop(backdropUrl || '');
+        setTmdbOverview(overview || '');
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [movie]);
+
+  const backdrop = tmdbBackdrop || fallbackBackdrop;
+  const description = tmdbOverview || movie?.content?.replace(/<[^>]+>/g, '');
 
   useEffect(() => {
     if (!movie?.slug) return;
@@ -308,8 +330,8 @@ export default function TvDetail() {
           ))}
         </div>
 
-        {(overview || movie.content) && (
-          <p className="tv-detail__desc">{overview || movie.content?.replace(/<[^>]+>/g, '')}</p>
+        {description && (
+          <p className="tv-detail__desc">{description}</p>
         )}
       </div>
 

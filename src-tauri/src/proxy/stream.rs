@@ -39,7 +39,19 @@ fn now_ms() -> u64 {
 }
 
 pub fn create_stream_token_inner(url: String) -> String {
-    format!("/api/stream?url={}", url)
+    url
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_stream_token_inner;
+
+    #[test]
+    fn create_stream_token_inner_keeps_playable_url_for_tauri_player() {
+        let url = "https://cdn.example.com/movie/master.m3u8".to_string();
+
+        assert_eq!(create_stream_token_inner(url.clone()), url);
+    }
 }
 
 #[tauri::command]

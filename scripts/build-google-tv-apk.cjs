@@ -31,6 +31,17 @@ function getAndroidDir(rootDir = process.cwd()) {
   return path.join(rootDir, 'src-tauri', 'gen', 'android');
 }
 
+function getGradleBuildCommand(rootDir = process.cwd(), platform = process.platform) {
+  const plan = getBuildPlan(platform);
+  const androidDir = getAndroidDir(rootDir);
+  const gradle = platform === 'win32' ? 'gradlew.bat' : './gradlew';
+  return {
+    command: toPosix(path.join(androidDir, gradle)),
+    args: [plan.gradleTask],
+    cwd: toPosix(androidDir),
+  };
+}
+
 function getApkPath(rootDir = process.cwd()) {
   return toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'apk', 'arm', 'release', 'app-arm-release.apk'));
 }
@@ -38,15 +49,15 @@ function getApkPath(rootDir = process.cwd()) {
 function getTauriIconPaths(rootDir = process.cwd()) {
   return [
     {
-      source: toPosix(path.join(rootDir, 'public', 'logo192.png')),
+      source: toPosix(path.join(rootDir, 'public', 'logo.png')),
       destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '32x32.png')),
     },
     {
-      source: toPosix(path.join(rootDir, 'public', 'logo192.png')),
+      source: toPosix(path.join(rootDir, 'public', 'logo.png')),
       destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '128x128.png')),
     },
     {
-      source: toPosix(path.join(rootDir, 'public', 'logo512.png')),
+      source: toPosix(path.join(rootDir, 'public', 'logo.png')),
       destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', '128x128@2x.png')),
     },
     {
@@ -54,6 +65,22 @@ function getTauriIconPaths(rootDir = process.cwd()) {
       destination: toPosix(path.join(rootDir, 'src-tauri', 'icons', 'icon.ico')),
     },
   ];
+}
+
+function getAndroidLauncherIconPaths(rootDir = process.cwd()) {
+  const densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
+  const names = ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png'];
+  return densities.flatMap((density) =>
+    names.map((name) =>
+      toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res', `mipmap-${density}`, name)),
+    ),
+  );
+}
+
+function getAndroidTvBannerPaths(rootDir = process.cwd()) {
+  return ['drawable', 'drawable-xhdpi'].map((directory) =>
+    toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'res', directory, 'banner.png')),
+  );
 }
 
 function run(command, args, options = {}) {
@@ -96,6 +123,36 @@ function prepareTauriIcons(rootDir = process.cwd()) {
   return iconPaths;
 }
 
+function prepareAndroidLauncherIcons(rootDir = process.cwd()) {
+  const source = path.join(rootDir, 'public', 'logo.png');
+  if (!fs.existsSync(source)) {
+    throw new Error(`Missing public logo asset: ${toPosix(source)}`);
+  }
+
+  const iconPaths = getAndroidLauncherIconPaths(rootDir);
+  for (const iconPath of iconPaths) {
+    fs.mkdirSync(path.dirname(iconPath), { recursive: true });
+    fs.copyFileSync(source, iconPath);
+  }
+
+  return iconPaths;
+}
+
+function prepareAndroidTvBanner(rootDir = process.cwd()) {
+  const source = path.join(rootDir, 'public', 'logo.png');
+  if (!fs.existsSync(source)) {
+    throw new Error(`Missing public logo asset: ${toPosix(source)}`);
+  }
+
+  const bannerPaths = getAndroidTvBannerPaths(rootDir);
+  for (const bannerPath of bannerPaths) {
+    fs.mkdirSync(path.dirname(bannerPath), { recursive: true });
+    fs.copyFileSync(source, bannerPath);
+  }
+
+  return bannerPaths;
+}
+
 function addUsesFeature(manifest, featureName, required) {
   const featurePattern = new RegExp(
     `<uses-feature\\s+android:name=["']${featureName.replace(/\./g, '\\.')}["'][^>]*>`,
@@ -109,9 +166,36 @@ function addUsesFeature(manifest, featureName, required) {
   return manifest.replace(/(<manifest\b[^>]*>)/, `$1\n    ${featureTag}`);
 }
 
+function addUsesPermission(manifest, permissionName) {
+  const permissionPattern = new RegExp(
+    `<uses-permission\\s+android:name=["']${permissionName.replace(/\./g, '\\.')}["'][^>]*>`,
+  );
+  const permissionTag = `<uses-permission android:name="${permissionName}" />`;
+
+  if (permissionPattern.test(manifest)) {
+    return manifest;
+  }
+
+  return manifest.replace(/(<manifest\b[^>]*>)/, `$1\n    ${permissionTag}`);
+}
+
+function setApplicationAttribute(manifest, attributeName, attributeValue) {
+  return manifest.replace(/<application\b[^>]*>/, (applicationTag) => {
+    const attributePattern = new RegExp(`\\s+${attributeName}=["'][^"']*["']`);
+    if (attributePattern.test(applicationTag)) {
+      return applicationTag.replace(attributePattern, `\n        ${attributeName}="${attributeValue}"`);
+    }
+
+    return applicationTag.replace(/\s*>$/, `\n        ${attributeName}="${attributeValue}">`);
+  });
+}
+
 function ensureGoogleTvManifestCompatibility(manifest) {
-  let updated = addUsesFeature(manifest, 'android.software.leanback', 'false');
+  let updated = addUsesPermission(manifest, 'android.permission.INTERNET');
+  updated = addUsesPermission(updated, 'android.permission.ACCESS_NETWORK_STATE');
+  updated = addUsesFeature(updated, 'android.software.leanback', 'false');
   updated = addUsesFeature(updated, 'android.hardware.touchscreen', 'false');
+  updated = setApplicationAttribute(updated, 'android:banner', '@drawable/banner');
   return updated;
 }
 
@@ -155,6 +239,8 @@ function verifyApk(apkPath) {
 function buildGoogleTvApk(rootDir = process.cwd()) {
   const plan = getBuildPlan();
   prepareTauriIcons(rootDir);
+  prepareAndroidLauncherIcons(rootDir);
+  prepareAndroidTvBanner(rootDir);
   updateGoogleTvManifest(rootDir);
   try {
     run('npx', plan.tauriArgs, { cwd: rootDir });
@@ -162,9 +248,13 @@ function buildGoogleTvApk(rootDir = process.cwd()) {
     if (!plan.needsSymlinkFallback) throw error;
     console.warn('Tauri Android build failed. Applying Windows symlink fallback and running Gradle directly.');
     copyArmLibrary(rootDir);
-    const gradle = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-    run(path.join(getAndroidDir(rootDir), gradle), [plan.gradleTask], { cwd: getAndroidDir(rootDir) });
   }
+
+  prepareAndroidLauncherIcons(rootDir);
+  prepareAndroidTvBanner(rootDir);
+  updateGoogleTvManifest(rootDir);
+  const gradleBuild = getGradleBuildCommand(rootDir);
+  run(gradleBuild.command, gradleBuild.args, { cwd: gradleBuild.cwd });
 
   const apkPath = getApkPath(rootDir);
   if (!fs.existsSync(apkPath)) {
@@ -187,10 +277,15 @@ if (require.main === module) {
 
 module.exports = {
   getBuildPlan,
+  getGradleBuildCommand,
   getArmLibraryPaths,
   getApkPath,
   getTauriIconPaths,
+  getAndroidLauncherIconPaths,
+  getAndroidTvBannerPaths,
   prepareTauriIcons,
+  prepareAndroidLauncherIcons,
+  prepareAndroidTvBanner,
   ensureGoogleTvManifestCompatibility,
   buildGoogleTvApk,
 };

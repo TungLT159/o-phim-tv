@@ -1,4 +1,5 @@
 use crate::proxy::stream;
+use reqwest::header::{ACCEPT, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 
 const OPHIM_BASE_URL: &str = "https://ophim1.com";
@@ -114,4 +115,49 @@ pub async fn fetch_episode(
         "slug": ep.slug,
         "playlistUrl": playlist_url,
     }))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HlsAssetResponse {
+    data: serde_json::Value,
+    final_url: String,
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn fetch_hls_asset(url: String, response_type: String) -> Result<HlsAssetResponse, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .header(USER_AGENT, "Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 Chrome/120 Safari/537.36")
+        .header(ACCEPT, "*/*")
+        .header(REFERER, "https://ophim1.com/")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch HLS asset: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HLS asset request failed: {}", resp.status()));
+    }
+
+    let final_url = resp.url().to_string();
+    if response_type == "arraybuffer" {
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read HLS bytes: {}", e))?;
+        Ok(HlsAssetResponse {
+            data: serde_json::json!(bytes.to_vec()),
+            final_url,
+        })
+    } else {
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read HLS text: {}", e))?;
+        Ok(HlsAssetResponse {
+            data: serde_json::json!(text),
+            final_url,
+        })
+    }
 }

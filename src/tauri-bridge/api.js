@@ -37,6 +37,18 @@ export const apiBridge = {
     return res.json();
   },
 
+  fetchHlsAsset: async (url, responseType) => {
+    if (isTauri()) {
+      return invoke('fetch_hls_asset', { url, responseType });
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (responseType === 'arraybuffer') {
+      return { data: Array.from(new Uint8Array(await res.arrayBuffer())), finalUrl: res.url };
+    }
+    return { data: await res.text(), finalUrl: res.url };
+  },
+
   startDownload: async (slug, ep, quality) => {
     if (isTauri()) {
       return invoke('start_download', { slug, ep, quality });

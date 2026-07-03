@@ -321,18 +321,8 @@ test("does not start autoplay countdown before the minimum 10-second window", as
   );
 });
 
-test("hides the download button by default", async () => {
+test("shows the download button in the legacy detail watch section", async () => {
   renderDetail("/movie/test-movie?ep=0:tap-1");
-
-  await screen.findByTestId("video-player");
-
-  expect(
-    screen.queryByRole("button", { name: /Tải về/i }),
-  ).not.toBeInTheDocument();
-});
-
-test("shows the download button when download query param is enabled", async () => {
-  renderDetail("/movie/test-movie?ep=0:tap-1&download=1");
 
   await screen.findByTestId("video-player");
 

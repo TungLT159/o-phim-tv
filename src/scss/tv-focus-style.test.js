@@ -75,6 +75,21 @@ describe('TV focus styling', () => {
     expect(sidebar).toMatch(/&::-webkit-scrollbar\s*\{[\s\S]*display:\s*none/i);
   });
 
+  test('keeps the custom video element styling unchanged for TV layout stability', () => {
+    const contents = read('components/video-player/custom-video-player.scss');
+
+    expect(contents).toMatch(/video\s*\{[\s\S]*background:\s*transparent/i);
+    expect(contents).toMatch(/video\s*\{[\s\S]*transform:\s*translateZ\(0\)/i);
+    expect(contents).toMatch(/video\s*\{[\s\S]*-webkit-transform:\s*translateZ\(0\)/i);
+    expect(contents).not.toMatch(/video\s*\{[\s\S]*object-fit:\s*contain/i);
+  });
+
+  test('does not nest Sass imports inside TV media queries', () => {
+    const contents = read('components/video-player/custom-video-player.scss');
+
+    expect(contents).not.toMatch(/@media[\s\S]*\{[\s\S]*@import/i);
+  });
+
   test('reserves vertical breathing room for scaled content row cards', () => {
     const contents = read('components/content-row/content-row.scss');
 

@@ -16,6 +16,9 @@ const movieDetail = {
   name: "Test Movie",
   origin_name: "Test Movie Original",
   tmdb: { id: 999, type: "movie" },
+  thumb_url: "ophim-thumb.jpg",
+  poster_url: "ophim-poster.jpg",
+  content: "<p>OPhim description</p>",
   episodes: [
     {
       server_name: "Vietsub",
@@ -129,6 +132,40 @@ test("marks the TV detail page as the scroll root for returning to the play butt
     "data-focus-scroll-root",
     "true",
   );
+});
+
+test("uses the TMDB backdrop on TV detail when available", async () => {
+  fetchTMDBImages.mockResolvedValue({
+    backdropUrl: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+    overview: "TMDB overview",
+  });
+
+  renderTvDetail();
+
+  await screen.findByRole("button", { name: /Phát/ });
+
+  await waitFor(() => {
+    expect(fetchTMDBImages).toHaveBeenCalledWith({ id: 999, type: "movie" });
+    expect(document.querySelector(".tv-detail__hero")).toHaveStyle({
+      backgroundImage: 'url("https://image.tmdb.org/t/p/original/backdrop.jpg")',
+    });
+  });
+  expect(screen.getByText("TMDB overview")).toBeInTheDocument();
+});
+
+test("falls back to OPhim artwork when TMDB has no backdrop", async () => {
+  fetchTMDBImages.mockResolvedValue({ backdropUrl: "", overview: "" });
+
+  renderTvDetail();
+
+  await screen.findByRole("button", { name: /Phát/ });
+
+  await waitFor(() => {
+    expect(document.querySelector(".tv-detail__hero")).toHaveStyle({
+      backgroundImage: 'url("https://img.ophim.live/uploads/movies/ophim-thumb.jpg")',
+    });
+  });
+  expect(screen.getByText("OPhim description")).toBeInTheDocument();
 });
 
 test("persists TV detail progress so home can show continue watching after leaving", async () => {

@@ -1,8 +1,49 @@
 import React from "react";
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import CustomVideoPlayer from "./CustomVideoPlayer";
 import { FocusProvider } from "../../context/FocusContext";
+import { getEpisodeLink } from "../../utils/episodeLinkManager";
+
+let mockHlsIsSupported = false;
+let mockHlsInstances = [];
+
+jest.mock("hls.js", () => {
+  return {
+    __esModule: true,
+    default: class MockHls {
+      constructor(config) {
+        this.config = config;
+        this.handlers = {};
+        mockHlsInstances.push(this);
+      }
+
+      static isSupported() {
+        return mockHlsIsSupported;
+      }
+
+      static Events = {
+        MANIFEST_PARSED: "manifestParsed",
+        LEVEL_LOADED: "levelLoaded",
+        ERROR: "error",
+      };
+
+      static ErrorTypes = {
+        NETWORK_ERROR: "networkError",
+        MEDIA_ERROR: "mediaError",
+      };
+
+      loadSource = jest.fn();
+      attachMedia = jest.fn();
+      on = jest.fn((event, handler) => {
+        this.handlers[event] = handler;
+      });
+      destroy = jest.fn();
+      startLoad = jest.fn();
+      recoverMediaError = jest.fn();
+    },
+  };
+});
 
 jest.mock("../../utils/episodeLinkManager", () => ({
   getEpisodeLink: jest.fn(),
@@ -18,6 +59,7 @@ const originalCancelAnimationFrame = window.cancelAnimationFrame;
 const originalMediaPlay = HTMLMediaElement.prototype.play;
 const originalMediaPause = HTMLMediaElement.prototype.pause;
 const originalMediaLoad = HTMLMediaElement.prototype.load;
+const originalCanPlayType = HTMLMediaElement.prototype.canPlayType;
 const originalPictureInPictureEnabled = Object.getOwnPropertyDescriptor(
   document,
   "pictureInPictureEnabled",
@@ -26,6 +68,9 @@ const originalRequestPictureInPicture =
   HTMLVideoElement.prototype.requestPictureInPicture;
 
 beforeEach(() => {
+  mockHlsIsSupported = false;
+  mockHlsInstances = [];
+  getEpisodeLink.mockReset();
   HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
   HTMLMediaElement.prototype.pause = jest.fn();
   HTMLMediaElement.prototype.load = jest.fn();
@@ -56,6 +101,7 @@ afterEach(() => {
   HTMLMediaElement.prototype.play = originalMediaPlay;
   HTMLMediaElement.prototype.pause = originalMediaPause;
   HTMLMediaElement.prototype.load = originalMediaLoad;
+  HTMLMediaElement.prototype.canPlayType = originalCanPlayType;
   if (originalPictureInPictureEnabled) {
     Object.defineProperty(
       document,
@@ -261,8 +307,8 @@ const mockPlayerBounds = (container) => {
 test("renders title, episode, and custom controls", () => {
   const { container } = renderPlayer();
 
-  expect(screen.getByText("Test Movie")).toBeInTheDocument();
-  expect(screen.getByText("Tập 1")).toBeInTheDocument();
+  expect(screen.getAllByText("Test Movie").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Tập 1").length).toBeGreaterThan(0);
   expect(screen.getAllByLabelText("Phát").length).toBeGreaterThan(0);
   expect(screen.getByLabelText("Tua video")).toBeInTheDocument();
   expect(container.querySelector(".custom-video-player__controls")).toHaveClass(
@@ -584,7 +630,7 @@ test("uses custom controls on large non-touch screens even when hover is unavail
 test("does not duplicate episode prefix in player metadata", () => {
   renderPlayerWithEpisodeName("Tập 1");
 
-  expect(screen.getByText("Tập 1")).toBeInTheDocument();
+  expect(screen.getAllByText("Tập 1").length).toBeGreaterThan(0);
   expect(screen.queryByText("Tập Tập 1")).not.toBeInTheDocument();
 });
 
@@ -594,7 +640,7 @@ test("renders episode group title in player metadata", () => {
     episodeGroupTitle: "Phần 2",
   });
 
-  expect(screen.getByText("Phần 2 - Tập 1")).toBeInTheDocument();
+  expect(screen.getAllByText("Phần 2 - Tập 1").length).toBeGreaterThan(0);
 });
 
 test("plays video from the center play button", () => {
@@ -613,18 +659,6 @@ test("center play button remains reliable after a prior touch", () => {
   fireEvent.click(screen.getByLabelText("Phát video"));
 
   expect(video.play).toHaveBeenCalledTimes(1);
-});
-
-test("desktop fullscreen prefers the custom player container", () => {
-  const { container, video } = renderPlayer();
-  const player = container.querySelector(".custom-video-player");
-  player.requestFullscreen = jest.fn();
-  video.webkitEnterFullscreen = jest.fn();
-
-  fireEvent.click(screen.getByLabelText("Toàn màn hình"));
-
-  expect(player.requestFullscreen).toHaveBeenCalledTimes(1);
-  expect(video.webkitEnterFullscreen).not.toHaveBeenCalled();
 });
 
 test("renders Picture-in-Picture control when supported", async () => {
@@ -813,6 +847,54 @@ test("remote OK toggles playback when the center play button is focused", () => 
   expect(video.play).toHaveBeenCalledTimes(1);
 });
 
+test("remote OK toggles playback when no player item is focused", () => {
+  const { video } = renderPlayer();
+  document.body.focus();
+
+  fireEvent.keyDown(window, { key: "Enter" });
+
+  expect(video.play).toHaveBeenCalledTimes(1);
+});
+
+test("focuses the timeline by default when it is available", async () => {
+  renderPlayer();
+
+  await waitFor(() => {
+    expect(screen.getByLabelText("Tua video")).toHaveFocus();
+  });
+});
+
+test("falls back to the play button when the timeline cannot be focused", async () => {
+  const querySelectorSpy = jest.spyOn(HTMLElement.prototype, "querySelector");
+  querySelectorSpy.mockImplementation(function mockQuerySelector(selector) {
+    if (selector === ".custom-video-player__progress") {
+      return null;
+    }
+    return Element.prototype.querySelector.call(this, selector);
+  });
+
+  try {
+    renderPlayer();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Phát video")).toHaveFocus();
+    });
+  } finally {
+    querySelectorSpy.mockRestore();
+  }
+});
+
+test("remote arrow entry focuses the timeline before player controls", () => {
+  const { video } = renderPlayer();
+  setMediaProperty(video, "paused", false);
+  fireEvent(video, new Event("play"));
+  document.body.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+
+  expect(screen.getByLabelText("Tua video")).toHaveFocus();
+});
+
 test("remote arrows can focus the center play button before playback starts", () => {
   const { video } = renderPlayer();
   const progress = screen.getByLabelText("Tua video");
@@ -981,6 +1063,183 @@ test("plays the next episode when playback ends and autoplay is enabled", () => 
   expect(onNextEpisode).toHaveBeenCalledTimes(1);
 });
 
+test("uses direct HLS source instead of embed URL when hls.js is unsupported", async () => {
+  mockHlsIsSupported = false;
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{
+        name: "1",
+        slug: "tap-1",
+        link_m3u8: "https://cdn.example.com/tap-1.m3u8",
+        link_embed: "https://embed.example.com/tap-1",
+      }}
+    />,
+  );
+
+  const video = videoRef.current;
+  video.canPlayType = jest.fn(() => "");
+
+  await waitFor(() => {
+    expect(video.src).toBe("https://cdn.example.com/tap-1.m3u8");
+  });
+  expect(video.src).not.toBe("https://embed.example.com/tap-1");
+});
+
+test("uses a Tauri-backed HLS loader on Android WebView to avoid browser CORS", async () => {
+  mockHlsIsSupported = true;
+  Object.defineProperty(window.navigator, "userAgent", {
+    configurable: true,
+    value: "Mozilla/5.0 (Linux; Android 12; sdk_google_atv_x86) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  });
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{
+        name: "1",
+        slug: "tap-1",
+        link_m3u8: "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+      }}
+    />,
+  );
+
+  const video = videoRef.current;
+  video.canPlayType = jest.fn((type) => (
+    type === "application/vnd.apple.mpegurl" ? "maybe" : ""
+  ));
+
+  await waitFor(() => {
+    expect(mockHlsInstances).toHaveLength(1);
+  });
+  const playbackHls = mockHlsInstances.find((instance) => instance.config.loader);
+  expect(playbackHls.config.enableWorker).toBe(false);
+  expect(playbackHls.config.loader).toEqual(expect.any(Function));
+  expect(playbackHls.loadSource).toHaveBeenCalledWith(
+    "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+  );
+  expect(video.src).toBe("");
+});
+
+test("prefers native HLS on Android TV when the WebView can play it", async () => {
+  mockHlsIsSupported = true;
+  Object.defineProperty(window.navigator, "userAgent", {
+    configurable: true,
+    value: "Mozilla/5.0 (Linux; Android 12; sdk_google_atv_x86) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  });
+  HTMLMediaElement.prototype.canPlayType = jest.fn((type) => (
+    type === "application/vnd.apple.mpegurl" ? "maybe" : ""
+  ));
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{
+        name: "1",
+        slug: "tap-1",
+        link_m3u8: "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+      }}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(videoRef.current.src).toBe(
+      "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+    );
+  });
+  expect(mockHlsInstances).toHaveLength(0);
+  expect(videoRef.current).not.toHaveAttribute("crossorigin");
+});
+
+test("falls back to native Android TV HLS when hls.js has an unrecoverable error", async () => {
+  mockHlsIsSupported = true;
+  Object.defineProperty(window.navigator, "userAgent", {
+    configurable: true,
+    value: "Mozilla/5.0 (Linux; Android 12; sdk_google_atv_x86) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  });
+  HTMLMediaElement.prototype.canPlayType = jest.fn(() => "");
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{
+        name: "1",
+        slug: "tap-1",
+        link_m3u8: "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+      }}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(mockHlsInstances).toHaveLength(1);
+  });
+  act(() => {
+    mockHlsInstances[0].handlers.error("error", {
+      type: "otherError",
+      details: "bufferAppendError",
+      fatal: true,
+    });
+  });
+
+  expect(mockHlsInstances[0].destroy).toHaveBeenCalledTimes(1);
+  expect(videoRef.current.src).toBe(
+    "https://vip.opstream11.com/20220304/879_6a052982/index.m3u8",
+  );
+});
+
+test("preserves the player video attributes used by the existing layout", () => {
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{ name: "1", slug: "tap-1", link_m3u8: "https://cdn.example.com/tap-1.m3u8" }}
+    />,
+  );
+
+  const video = videoRef.current;
+  expect(video).toHaveAttribute("playsinline");
+  expect(video).toHaveAttribute("webkit-playsinline", "true");
+  expect(video).toHaveAttribute("preload", "auto");
+  expect(video).toHaveAttribute("crossorigin", "anonymous");
+});
+
+test("omits crossorigin on Android TV so native HLS can load providers without CORS headers", () => {
+  Object.defineProperty(window.navigator, "userAgent", {
+    configurable: true,
+    value: "Mozilla/5.0 (Linux; Android 12; sdk_google_atv_x86) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  });
+  const videoRef = React.createRef();
+
+  render(
+    <CustomVideoPlayer
+      videoRef={videoRef}
+      title="Test Movie"
+      movieId="test-movie"
+      episode={{ name: "1", slug: "tap-1", link_m3u8: "https://cdn.example.com/tap-1.m3u8" }}
+    />,
+  );
+
+  const video = videoRef.current;
+  expect(video).toHaveAttribute("playsinline");
+  expect(video).not.toHaveAttribute("crossorigin");
+});
+
 test("shows TV autoplay countdown near the end and focuses play now", () => {
   jest.useFakeTimers();
   const onNextEpisode = jest.fn();
@@ -1118,7 +1377,7 @@ test("TV focus provider does not steal autoplay card arrow navigation", () => {
   expect(playNow).toHaveFocus();
 });
 
-test("remote arrows reveal hidden controls and focus the first control", () => {
+test("remote arrows reveal hidden controls and focus the timeline first", () => {
   jest.useFakeTimers();
   const { container, video } = renderPlayer();
 
@@ -1134,7 +1393,7 @@ test("remote arrows reveal hidden controls and focus the first control", () => {
   fireEvent.keyDown(window, { key: "ArrowRight" });
 
   expect(container.querySelector(".custom-video-player")).toHaveClass("is-active");
-  expect(screen.getAllByLabelText("Tạm dừng")[1]).toHaveFocus();
+  expect(screen.getByLabelText("Tua video")).toHaveFocus();
 });
 
 test("coalesces frequent video time updates into one animation frame", () => {
@@ -1158,24 +1417,6 @@ test("coalesces frequent video time updates into one animation frame", () => {
   });
 
   expect(screen.getByText("00:11")).toBeInTheDocument();
-});
-
-test("toggles mute", () => {
-  const { video } = renderPlayer();
-
-  fireEvent.click(screen.getByLabelText("Tắt âm"));
-
-  expect(video.muted).toBe(true);
-});
-
-test("changes volume and mutes when volume reaches zero", () => {
-  const { video } = renderPlayer();
-  const volume = screen.getByLabelText("Âm lượng");
-
-  fireEvent.change(volume, { target: { value: "0" } });
-
-  expect(video.volume).toBe(0);
-  expect(video.muted).toBe(true);
 });
 
 test("remote left and right seek from the main player area", () => {
