@@ -6,25 +6,10 @@ import { MemoryRouter } from "react-router-dom";
 const mockGetMoviesList = jest.fn();
 const mockGetListByCountry = jest.fn();
 const mockGetListByType = jest.fn();
-const mockIsTauri = jest.fn(() => false);
 const mockWatchHistoryKey = "ophim_watch_history:v1";
 
 jest.mock("react-helmet", () => ({
   Helmet: ({ children }) => <>{children}</>,
-}));
-
-jest.mock("../components/hero-slide/HeroSlide", () => () => <div>HeroSlide</div>);
-
-jest.mock("../components/movie-list/MovieList", () => () => <div>MovieList</div>);
-
-jest.mock("../components/ranking-section/RankingSection", () => ({ title }) => (
-  <section>
-    <h2>{title}</h2>
-  </section>
-));
-
-jest.mock("../tauri-bridge", () => ({
-  isTauri: () => mockIsTauri(),
 }));
 
 jest.mock("../components/tv-hero/TvHero", () => ({ items }) => (
@@ -41,7 +26,7 @@ jest.mock("../components/content-row/ContentRow", () => ({ title, row, rowId, it
 jest.mock("../components/continue-watching-list/ContinueWatchingList", () => (props) => {
   const history = JSON.parse(global.localStorage.getItem(mockWatchHistoryKey) || "[]");
 
-  if (!mockIsTauri() && history.length === 0) {
+  if (history.length === 0) {
     return null;
   }
 
@@ -56,47 +41,12 @@ jest.mock("../components/continue-watching-list/ContinueWatchingList", () => (pr
   );
 });
 
-jest.mock(
-  "swiper/react",
-  () => ({
-    Swiper: ({
-      autoplay,
-      children,
-      className,
-      grabCursor,
-      modules,
-      navigation,
-      onSwiper,
-      slidesPerView,
-      spaceBetween,
-      ...props
-    }) => (
-      <div {...props} className={className ? `swiper ${className}` : "swiper"}>
-        {children}
-      </div>
-    ),
-    SwiperSlide: ({ children }) => <div className="swiper-slide">{children}</div>,
-  }),
-  { virtual: true },
-);
-
-jest.mock(
-  "swiper/modules",
-  () => ({
-    Autoplay: {},
-  }),
-  { virtual: true },
-);
-
 jest.mock("../api/tmdbApi", () => ({
   __esModule: true,
   default: {
     getMoviesList: mockGetMoviesList,
     getListByCountry: mockGetListByCountry,
     getListByType: mockGetListByType,
-  },
-  category: {
-    movie: "movie",
   },
   movieType: {
     phimMoi: "phim-moi",
@@ -142,33 +92,12 @@ beforeEach(() => {
   mockGetMoviesList.mockClear();
   mockGetListByCountry.mockClear();
   mockGetListByType.mockClear();
-  mockIsTauri.mockClear();
   mockGetMoviesList.mockReturnValue(new Promise(() => {}));
   mockGetListByCountry.mockResolvedValue({ data: { items: [] } });
   mockGetListByType.mockResolvedValue({ data: { items: [] } });
-  mockIsTauri.mockReturnValue(false);
 });
 
-test("renders continue watching before theatrical movies when watch history exists", async () => {
-  seedHistory();
-
-  renderHome();
-
-  const continueWatchingHeading = await screen.findByRole("heading", {
-    name: "Tiếp tục xem",
-  });
-  const theatricalHeading = screen.getByRole("heading", { name: "Phim chiếu rạp" });
-
-  await waitFor(() => {
-    expect(
-      continueWatchingHeading.compareDocumentPosition(theatricalHeading)
-        & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-});
-
-test("keeps TV hero as the first focus row and offsets continue watching/content rows", async () => {
-  mockIsTauri.mockReturnValue(true);
+test("renders TV home rows without requiring Tauri detection", async () => {
   mockGetMoviesList.mockResolvedValue({
     data: {
       items: [
@@ -186,11 +115,31 @@ test("keeps TV hero as the first focus row and offsets continue watching/content
     expect(screen.getByTestId("content-row-count-phim-moi")).toHaveTextContent("1");
   });
 
-  const continueWatching = screen.getByTestId("continue-watching-list");
-  expect(continueWatching).toHaveAttribute("data-tv-focusable", "true");
-  expect(continueWatching).toHaveAttribute("data-row", "1");
+  expect(screen.getByTestId("tv-hero")).toHaveTextContent("1");
 
   const rows = await screen.findAllByTestId("content-row");
   expect(rows[0]).toHaveAttribute("data-row", "2");
   expect(rows[0]).toHaveAttribute("data-row-id", "phim-moi");
+});
+
+test("renders continue watching row before theatrical heading", async () => {
+  seedHistory();
+
+  renderHome();
+
+  const continueWatchingHeading = await screen.findByRole("heading", {
+    name: "Tiếp tục xem",
+  });
+  const theatricalHeading = screen.getByRole("heading", { name: "Phim chiếu rạp" });
+
+  const continueWatching = screen.getByTestId("continue-watching-list");
+  expect(continueWatching).toHaveAttribute("data-tv-focusable", "true");
+  expect(continueWatching).toHaveAttribute("data-row", "1");
+
+  await waitFor(() => {
+    expect(
+      continueWatchingHeading.compareDocumentPosition(theatricalHeading)
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });

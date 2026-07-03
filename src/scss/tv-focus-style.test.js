@@ -25,6 +25,26 @@ describe('TV focus styling', () => {
     expect(contents).not.toMatch(/\.content-row__card:focus-visible[\s\S]*\.content-row__poster\s*\{/);
   });
 
+  test('does not keep focus styles for removed legacy UI selectors', () => {
+    const contents = read('scss/tv-focus.scss');
+    const legacySelectors = [
+      ['hero', 'slide'],
+      ['movie', 'grid'],
+      ['movie', 'card'],
+      ['download', 'button'],
+      ['cast', 'item'],
+      ['ranking', 'section'],
+      ['page', 'header'],
+      ['update', 'notification'],
+    ].map(([first, second]) => `.${first}-${second}`);
+
+    legacySelectors.forEach((selector) => {
+      expect(contents).not.toContain(selector);
+    });
+    expect(contents).not.toMatch(new RegExp(`\\.${['b', 't', 'n'].join('')}\\b`));
+    expect(contents).not.toMatch(new RegExp(`${['legacy', 'movie', 'card'].join('[\\s-]+')}`, 'i'));
+  });
+
   test('keeps search focus on the outer search bar and card wrappers', () => {
     const contents = read('pages/tv-search.scss');
 
@@ -38,7 +58,7 @@ describe('TV focus styling', () => {
     const heroFocus = read('components/tv-hero/tv-hero.scss');
 
     expect(globalFocus).not.toMatch(/^\s*\*:focus-visible\s*\{/m);
-    expect(globalFocus).not.toMatch(/button:focus-visible|\.btn:focus-visible/);
+    expect(globalFocus).not.toMatch(new RegExp(`button:focus-visible|\\.${['b', 't', 'n'].join('')}:focus-visible`));
     expect(heroFocus).not.toMatch(/&__play-btn[\s\S]*&:focus-visible/);
     expect(heroFocus).not.toMatch(/&:focus-visible\s+&__play-btn/);
   });

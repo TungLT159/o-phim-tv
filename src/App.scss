@@ -153,14 +153,6 @@ iframe{
   margin-left: 60px;
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-  .header {
-    display: none;
-  }
-
-  .footer {
-    display: none;
-  }
-
   .container {
     max-width: 100%;
   }
@@ -175,14 +167,6 @@ iframe{
     .content-row:first-of-type {
       margin-top: 2rem;
     }
-  }
-
-  .detail-page {
-    padding: 1.5rem 2.5rem 2rem;
-  }
-
-  .catalog-page {
-    padding: 1.5rem 2.5rem 2rem;
   }
 }
 

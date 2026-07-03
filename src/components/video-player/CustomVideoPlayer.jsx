@@ -26,6 +26,18 @@ const shouldShowFpsDebug = () => {
   return new URLSearchParams(window.location.search).get("debugFps") === "1";
 };
 
+const logPlaybackWarning = (...args) => {
+  if (process.env.NODE_ENV !== "test") {
+    console.warn(...args);
+  }
+};
+
+const logPlaybackError = (...args) => {
+  if (process.env.NODE_ENV !== "test") {
+    console.error(...args);
+  }
+};
+
 const isAndroidRuntime = () => {
   if (typeof navigator === "undefined") return false;
   return /Android/i.test(navigator.userAgent || "");
@@ -1127,7 +1139,6 @@ const CustomVideoPlayer = ({
 
     const video = videoRef.current;
     const epName = episode?.slug || episode?.name;
-    console.log('[CustomVideoPlayer] self-contained effect running', { selfContained, hasVideo: !!video, epName, movieId });
     
     if (!video || !epName) return;
 
@@ -1140,8 +1151,7 @@ const CustomVideoPlayer = ({
 
     const playAndPrefetch = () => {
       if (cancelled) return;
-      console.log('[CustomVideoPlayer] playing video');
-      video.play().catch((e) => console.error('[CustomVideoPlayer] play error:', e));
+      video.play().catch((e) => logPlaybackError('[CustomVideoPlayer] play error:', e));
     };
 
     const loadSource = async () => {
@@ -1154,18 +1164,14 @@ const CustomVideoPlayer = ({
         let embedUrl = episode?.link_embed;
 
         if (!sourceUrl && !embedUrl) {
-          console.log('[CustomVideoPlayer] no direct link_m3u8 on episode, fetching via API...');
           const link = await getEpisodeLink(
             movieId,
             epName,
             episode.episodeGroupIndex,
           );
-          console.log('[CustomVideoPlayer] got episode link', { hasPlaylist: !!link?.playlistUrl, hasM3u8: !!link?.link_m3u8, hasEmbed: !!link?.link_embed });
           if (cancelled) return;
           sourceUrl = link?.playlistUrl || link?.link_m3u8;
           embedUrl = link?.link_embed;
-        } else {
-          console.log('[CustomVideoPlayer] using direct link_m3u8 from episode', sourceUrl?.substring(0, 80));
         }
 
         if (!sourceUrl && !embedUrl) {
@@ -1174,20 +1180,12 @@ const CustomVideoPlayer = ({
           return;
         }
 
-        // Log video element state
-        console.log('[CustomVideoPlayer] Video element state', {
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          readyState: video.readyState,
-          networkState: video.networkState
-        });
-
         const nativeHls =
           sourceUrl && video.canPlayType("application/vnd.apple.mpegurl");
 
         const fallbackToNativeSource = (reason) => {
           if (!sourceUrl || cancelled) return;
-          console.warn('[CustomVideoPlayer] falling back to native HLS', reason);
+          logPlaybackWarning('[CustomVideoPlayer] falling back to native HLS', reason);
           if (hls) {
             hls.destroy();
             hls = null;
@@ -1199,7 +1197,6 @@ const CustomVideoPlayer = ({
         };
 
         if (sourceUrl && isAndroidRuntime() && nativeHls) {
-          console.log('[CustomVideoPlayer] using Android native HLS', sourceUrl.substring(0, 80));
           video.src = sourceUrl;
           video.load();
           canPlayHandler = playAndPrefetch;
@@ -1208,7 +1205,6 @@ const CustomVideoPlayer = ({
         }
 
         if (sourceUrl && Hls.isSupported()) {
-          console.log('[CustomVideoPlayer] setting up HLS.js', sourceUrl.substring(0, 80));
           video.removeAttribute("src");
           video.load();
 
@@ -1216,7 +1212,7 @@ const CustomVideoPlayer = ({
           
           manifestTimeout = setTimeout(() => {
             if (cancelled) return;
-            console.error('[CustomVideoPlayer] HLS manifest timeout, trying direct src');
+            logPlaybackError('[CustomVideoPlayer] HLS manifest timeout, trying direct src');
             fallbackToNativeSource('manifest timeout');
           }, 15000);
           
@@ -1229,29 +1225,11 @@ const CustomVideoPlayer = ({
 
           hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
             clearTimeout(manifestTimeout);
-            console.log('[CustomVideoPlayer] HLS manifest parsed', {
-              levels: data.levels?.length,
-              firstLevel: data.levels?.[0],
-              audioTracks: data.audioTracks?.length,
-              hasVideo: data.levels?.some(l => l.videoCodec),
-              hasAudio: data.levels?.some(l => l.audioCodec)
-            });
             playAndPrefetch();
           });
           
-          hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
-            console.log('[CustomVideoPlayer] Level loaded', {
-              level: data.level,
-              details: {
-                totalduration: data.details.totalduration,
-                live: data.details.live,
-                targetduration: data.details.targetduration
-              }
-            });
-          });
-          
           hls.on(Hls.Events.ERROR, (event, data) => {
-            console.error('[CustomVideoPlayer] HLS error', {
+            logPlaybackError('[CustomVideoPlayer] HLS error', {
               type: data.type,
               details: data.details,
               fatal: data.fatal,
@@ -1268,11 +1246,11 @@ const CustomVideoPlayer = ({
               }
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  console.error('[CustomVideoPlayer] Fatal network error, trying to recover');
+                  logPlaybackError('[CustomVideoPlayer] Fatal network error, trying to recover');
                   hls.startLoad();
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
-                  console.error('[CustomVideoPlayer] Fatal media error, trying to recover');
+                  logPlaybackError('[CustomVideoPlayer] Fatal media error, trying to recover');
                   hls.recoverMediaError();
                   break;
                 default:
@@ -1288,8 +1266,6 @@ const CustomVideoPlayer = ({
 
         const playbackUrl = sourceUrl || embedUrl;
 
-        console.log('[CustomVideoPlayer] native HLS fallback', { nativeHls, playbackUrl: playbackUrl?.substring(0, 80) });
-
         if (!playbackUrl) {
           setSelfPlaybackError("Không tìm thấy link phát video.");
           setIsLoading(false);
@@ -1304,7 +1280,7 @@ const CustomVideoPlayer = ({
         canPlayHandler = playAndPrefetch;
         video.addEventListener("canplay", canPlayHandler, { once: true });
       } catch (err) {
-        console.error('[CustomVideoPlayer] load error:', err);
+        logPlaybackError('[CustomVideoPlayer] load error:', err);
         if (!cancelled) {
           setSelfPlaybackError("Không thể phát video. Lỗi: " + (err.message || "Unknown"));
           setIsLoading(false);
@@ -1353,7 +1329,7 @@ const CustomVideoPlayer = ({
       if (document.fullscreenElement) return;
       if (player.requestFullscreen) {
         player.requestFullscreen().catch((err) => {
-          console.log('[CustomVideoPlayer] Fullscreen not supported or denied:', err);
+          logPlaybackWarning('[CustomVideoPlayer] Fullscreen not supported or denied:', err);
         });
       }
     }, 200);

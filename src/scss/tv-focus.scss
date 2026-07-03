@@ -25,78 +25,6 @@
     line-height: 1.6;
   }
 
-  // Hero slide: taller for TV
-  .hero-slide {
-    min-height: 70vh;
-    margin-bottom: 5rem;
-
-    &__content {
-      padding: 0 3rem;
-    }
-
-    &__title {
-      font-size: 4rem;
-    }
-
-    &__description {
-      font-size: 1.2rem;
-      max-width: 60%;
-    }
-
-    .swiper-button-prev,
-    .swiper-button-next {
-      width: 70px;
-      height: 70px;
-
-      &::after {
-        font-size: 28px;
-      }
-    }
-  }
-
-  // Movie grid: more columns, larger cards
-  .movie-grid {
-    gap: 1.5rem;
-  }
-
-  .movie-card {
-    border-radius: 20px;
-    margin-bottom: 1.5rem;
-
-    &__title {
-      font-size: 1.1rem;
-      margin-top: 0.85rem;
-    }
-
-    &__badge {
-      padding: 6px 14px;
-      font-size: 0.8rem;
-
-      &.quality-badge {
-        top: 14px;
-        left: 14px;
-      }
-      &.rating-badge {
-        top: 14px;
-        right: 14px;
-      }
-    }
-
-    &__info {
-      padding: 14px;
-      span {
-        font-size: 0.85rem;
-      }
-    }
-  }
-
-  // Buttons: larger
-  .btn {
-    padding: 0.8rem 2.2rem;
-    font-size: 1.1rem;
-    min-height: 52px;
-  }
-
   // Episode list
   .episode-scroll {
     &__item {
@@ -104,25 +32,6 @@
       padding: 0.9rem 1.4rem;
       min-width: 60px;
       min-height: 52px;
-    }
-  }
-
-  // Download button
-  .download-button {
-    font-size: 1.1rem;
-    padding: 0.8rem 2rem;
-  }
-
-  // Cast list
-  .cast-item {
-    font-size: 1rem;
-  }
-
-  // Ranking section
-  .ranking-section {
-    &__item {
-      font-size: 1.1rem;
-      padding: 1rem;
     }
   }
 
@@ -150,23 +59,6 @@
     }
   }
 
-  // Footer
-  .footer {
-    font-size: 1rem;
-    padding: 2.5rem;
-  }
-
-  // Page header
-  .page-header {
-    font-size: 1.5rem;
-    padding: 1rem 0;
-  }
-
-  // Update notification
-  .update-notification {
-    font-size: 1rem;
-    padding: 1rem 1.5rem;
-  }
 }
 
 /* ================= TV FOCUS INDICATORS ================= */
@@ -184,31 +76,6 @@
   .tv-hero:focus-visible {
     outline: 4px solid #fff;
     outline-offset: -4px;
-  }
-
-  // Card focus on TV - show overlay like hover does on desktop (for legacy movie-card)
-  .movie-card:focus-visible {
-    transform: translateY(-8px) scale(1.03);
-    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6),
-                0 0 0 4px #fff;
-
-    &::before {
-      opacity: 1;
-    }
-
-    .btn {
-      transform: scale(1.15);
-      opacity: 1;
-    }
-
-    &__info {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    &__badge {
-      transform: scale(1.1);
-    }
   }
 
   // TV Sidebar focus styles
@@ -249,36 +116,11 @@
     box-shadow: 0 0 24px rgba(229, 9, 20, 0.6);
   }
 
-  // Link focus
-  a:focus-visible {
-    .movie-card__title {
-      color: #fff;
-    }
-  }
-
   // Swiper navigation focus
   .swiper-button-prev:focus-visible,
   .swiper-button-next:focus-visible {
     transform: scale(1.15);
     box-shadow: 0 0 24px rgba(255, 255, 255, 0.45);
-  }
-
-  // Remove hover-only overlays on TV (use focus instead)
-  .movie-card {
-    @media (hover: none) {
-      &__info {
-        opacity: 0;
-      }
-
-      .btn {
-        transform: scale(0);
-        opacity: 0;
-      }
-
-      &::before {
-        opacity: 0;
-      }
-    }
   }
 
   // Smooth scroll behavior for TV

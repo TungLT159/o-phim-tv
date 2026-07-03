@@ -18,7 +18,6 @@ import {
   saveWatchProgress,
   shouldShowContinueWatching,
 } from '../../utils/watchHistoryManager';
-import '../detail/detail.scss';
 import './tv-detail.scss';
 
 const getEpisodeProgressKey = (episode) => episode?.episodeKey || episode?.name || '';

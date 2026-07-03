@@ -23,8 +23,7 @@
     "react-router-dom": "^6.30.0",
     "react-scripts": "^5.0.1",
     "sass": "1.69.5",
-    "swiper": "^11.1.15",
-    "web-vitals": "^5.2.0"
+    "swiper": "^11.1.15"
   },
   "scripts": {
     "start:react": "cross-env NODE_OPTIONS=--openssl-legacy-provider BROWSER=none react-scripts start",

@@ -491,16 +491,22 @@ test("episode dialog keeps remote focus inside the popup", () => {
   const episodeTwo = screen.getByRole("button", { name: "Tập 2" });
   const playButton = screen.getByLabelText("Phát video");
 
-  episodeTwo.focus();
+  act(() => {
+    episodeTwo.focus();
+  });
   fireEvent.keyDown(window, { key: "ArrowDown" });
   expect(episodeTwo).toHaveFocus();
 
-  closeButton.focus();
+  act(() => {
+    closeButton.focus();
+  });
   fireEvent.keyDown(window, { key: "ArrowUp" });
   expect(closeButton).toHaveFocus();
 
   // Simulates browser/timing recovery when focus escapes the open modal.
-  playButton.focus();
+  act(() => {
+    playButton.focus();
+  });
   fireEvent.keyDown(window, { key: "ArrowRight" });
   expect(episodeOne).toHaveFocus();
 });

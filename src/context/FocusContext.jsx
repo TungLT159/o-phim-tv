@@ -1,6 +1,4 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import { isTauri } from '../tauri-bridge';
-import { throttle } from '../utils/throttle';
 
 // Zone skip rules for fast navigation
 const ZONE_SKIP_RULES = {
@@ -504,7 +502,6 @@ export function FocusProvider({ children }) {
   const refMap = useRef(new Map());
   const prevStateRef = useRef({ zone: 1, row: 0, col: 0 });
   const accelerationIntervalRef = useRef(null);
-  const isTv = isTauri();
 
   const register = useCallback((zone, row, col, domRef) => {
     dispatch({ type: 'REGISTER', zone, row, col, ref: domRef });

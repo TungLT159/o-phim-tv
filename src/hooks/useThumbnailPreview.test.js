@@ -6,8 +6,12 @@ describe("useThumbnailPreview", () => {
   let canvasRef;
   let videoElement;
   let canvasElement;
+  let originalMediaLoad;
 
   beforeEach(() => {
+    originalMediaLoad = HTMLMediaElement.prototype.load;
+    HTMLMediaElement.prototype.load = jest.fn();
+
     videoElement = document.createElement("video");
     Object.defineProperty(videoElement, "duration", {
       value: 120,
@@ -30,6 +34,11 @@ describe("useThumbnailPreview", () => {
 
     videoRef = { current: videoElement };
     canvasRef = { current: canvasElement };
+  });
+
+  afterEach(() => {
+    HTMLMediaElement.prototype.load = originalMediaLoad;
+    jest.useRealTimers();
   });
 
   it("returns preview null by default", () => {
@@ -64,8 +73,6 @@ describe("useThumbnailPreview", () => {
     expect(result.current.preview).not.toBeNull();
     expect(result.current.preview.dataURL).toBe("data:image/jpeg;base64,abc123");
     expect(result.current.preview.position).toBe(50);
-
-    jest.useRealTimers();
   });
 
   it("cancelRequest clears pending preview", () => {
@@ -87,7 +94,6 @@ describe("useThumbnailPreview", () => {
     });
 
     expect(result.current.preview).toBeNull();
-    jest.useRealTimers();
   });
 
   it("returns null when duration is 0", () => {
@@ -134,8 +140,6 @@ describe("useThumbnailPreview", () => {
 
     expect(result.current.preview).not.toBeNull();
     expect(result.current.preview.dataURL).toBe(firstPreview.dataURL);
-
-    jest.useRealTimers();
   });
 
   it("setSource clears cache", () => {
@@ -170,8 +174,6 @@ describe("useThumbnailPreview", () => {
       result.current.setSource("http://example.com/video.mp4", false);
     });
     expect(result.current.preview).toBeNull();
-
-    jest.useRealTimers();
   });
 
   it("debounces rapid requests", () => {
@@ -206,7 +208,5 @@ describe("useThumbnailPreview", () => {
 
     expect(canvasElement.toDataURL).toHaveBeenCalledTimes(1);
     expect(videoElement.currentTime).toBe(30);
-
-    jest.useRealTimers();
   });
 });
