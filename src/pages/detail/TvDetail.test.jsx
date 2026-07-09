@@ -11,6 +11,7 @@ import {
 } from "../../utils/watchHistoryManager";
 
 const mockCustomVideoPlayer = jest.fn();
+const AUTOPLAY_PREFERENCE_KEY = "ophim:auto-play-enabled";
 
 const movieDetail = {
   name: "Test Movie",
@@ -70,6 +71,26 @@ const setMediaProperty = (element, property, value) => {
   });
 };
 
+const mockPlayerWithAutoplayToggle = () => {
+  mockCustomVideoPlayer.mockImplementation(({
+    videoRef,
+    autoPlayEnabled,
+    onToggleAutoPlay,
+  }) => (
+    <div>
+      <video ref={videoRef} data-testid="video-player" />
+      <button
+        type="button"
+        aria-label={autoPlayEnabled ? "Tắt tự động phát" : "Bật tự động phát"}
+        aria-pressed={Boolean(autoPlayEnabled)}
+        onClick={onToggleAutoPlay}
+      >
+        Autoplay
+      </button>
+    </div>
+  ));
+};
+
 beforeEach(async () => {
   await clearWatchHistory();
   mockCustomVideoPlayer.mockClear();
@@ -110,6 +131,78 @@ test("passes previous episode props when TV detail starts on a later episode", a
       onNextEpisode: expect.any(Function),
     }),
   );
+});
+
+test("enables autoplay by default when no saved preference exists", async () => {
+  renderTvDetail();
+
+  fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
+
+  await waitFor(() => expect(mockCustomVideoPlayer).toHaveBeenCalled());
+
+  const playerProps = mockCustomVideoPlayer.mock.calls.at(-1)[0];
+
+  expect(playerProps.autoPlayEnabled).toBe(true);
+});
+
+test("uses the saved disabled autoplay preference", async () => {
+  localStorage.setItem(AUTOPLAY_PREFERENCE_KEY, "false");
+
+  renderTvDetail();
+
+  fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
+
+  await waitFor(() => expect(mockCustomVideoPlayer).toHaveBeenCalled());
+
+  const playerProps = mockCustomVideoPlayer.mock.calls.at(-1)[0];
+
+  expect(playerProps.autoPlayEnabled).toBe(false);
+});
+
+test("persists autoplay preference when the player toggle changes", async () => {
+  mockPlayerWithAutoplayToggle();
+
+  renderTvDetail();
+
+  fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Tắt tự động phát" }));
+
+  await screen.findByRole("button", { name: "Bật tự động phát" });
+
+  expect(localStorage.getItem(AUTOPLAY_PREFERENCE_KEY)).toBe("false");
+
+  fireEvent.click(screen.getByRole("button", { name: "Bật tự động phát" }));
+  await screen.findByRole("button", { name: "Tắt tự động phát" });
+  expect(localStorage.getItem(AUTOPLAY_PREFERENCE_KEY)).toBe("true");
+});
+
+test("keeps autoplay usable when localStorage throws", async () => {
+  const getItemSpy = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    throw new Error("storage read failed");
+  });
+  const setItemSpy = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new Error("storage write failed");
+  });
+  mockPlayerWithAutoplayToggle();
+
+  renderTvDetail();
+  fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
+
+  expect(await screen.findByRole("button", { name: "Tắt tự động phát" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Tắt tự động phát" }));
+
+  expect(await screen.findByRole("button", { name: "Bật tự động phát" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+
+  getItemSpy.mockRestore();
+  setItemSpy.mockRestore();
 });
 
 test("scrolls TV detail to the hero when the play button receives focus", async () => {

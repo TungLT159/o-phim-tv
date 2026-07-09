@@ -18,6 +18,15 @@ describe('TV focus styling', () => {
     });
   });
 
+  test('uses white rings for continue watching card focus states', () => {
+    const contents = read('components/continue-watching-list/continue-watching-list.scss');
+
+    expect(contents).toMatch(/&:focus-visible\s*\{[\s\S]*outline:\s*2px solid #fff/i);
+    expect(contents).toMatch(/&__card--menu-open,[\s\S]*&__card--focused\s*\{[\s\S]*0 0 0 3px #fff/i);
+    expect(contents).not.toMatch(/&:focus-visible\s*\{[\s\S]*outline:\s*2px solid #e50914/i);
+    expect(contents).not.toMatch(/&__card--menu-open,[\s\S]*&__card--focused\s*\{[\s\S]*rgba\(255,\s*61,\s*113,\s*0\.4\)/i);
+  });
+
   test('keeps movie card focus on the card wrapper instead of the poster', () => {
     const contents = read('scss/tv-focus.scss');
 

@@ -1,6 +1,6 @@
 import React from "react";
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FocusProvider, useFocus, useFocusable } from "./FocusContext";
 
 jest.mock("../tauri-bridge", () => ({
@@ -155,6 +155,46 @@ test("does not steal focus from text input on active target re-render", async ()
   await screen.findByRole("button", { name: "Xem ngay cập nhật" });
 
   expect(input).toHaveFocus();
+});
+
+test("does not steal focus from player controls on active target re-render", async () => {
+  let updateActiveButton;
+
+  function ReRenderingActiveButton() {
+    const { ref } = useFocusable(1, 0, 0);
+    const [label, setLabel] = React.useState("Xem ngay");
+
+    React.useEffect(() => {
+      updateActiveButton = () => setLabel("Xem ngay cập nhật");
+      return () => {
+        updateActiveButton = undefined;
+      };
+    }, []);
+
+    return <button ref={ref} type="button">{label}</button>;
+  }
+
+  render(
+    <FocusProvider>
+      <ReRenderingActiveButton />
+      <div className="custom-video-player">
+        <button type="button">Tua lùi 10 giây</button>
+      </div>
+    </FocusProvider>,
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+
+  const playerControl = screen.getByRole("button", { name: "Tua lùi 10 giây" });
+  playerControl.focus();
+
+  act(() => {
+    updateActiveButton();
+  });
+
+  await screen.findByRole("button", { name: "Xem ngay cập nhật" });
+
+  expect(playerControl).toHaveFocus();
 });
 
 test("refocuses a previously synced target when navigation returns to it from another row", async () => {

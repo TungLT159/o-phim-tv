@@ -133,6 +133,10 @@ export const useEpisodePlayback = ({
       if (hls) {
         hls.destroy();
       }
+
+      video.pause?.();
+      video.removeAttribute?.("src");
+      video.load?.();
     };
   }, [movieId, episode, nextEpisode, videoRef]);
 

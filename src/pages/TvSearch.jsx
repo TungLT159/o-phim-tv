@@ -88,7 +88,7 @@ export default function TvSearch() {
   const gridRef = useRef(null);
   const latestSearchRequestIdRef = useRef(0);
   const hasRestoredSessionRef = useRef(false);
-  const { skipToZone } = useFocus();
+  const { skipToZone, setFocusPosition } = useFocus();
 
   useEffect(() => {
     const shouldAutoFocusInput = !initialSession.lastFocusedSlug && !initialSession.scrollY;
@@ -154,6 +154,10 @@ export default function TvSearch() {
   const focusSearchInput = useCallback(() => {
     inputRef.current?.focus?.();
   }, []);
+
+  const handleSearchInputFocus = useCallback(() => {
+    setFocusPosition(1, 0, 0);
+  }, [setFocusPosition]);
 
   const rememberResult = useCallback((slug) => {
     saveTvSearchSession({ lastFocusedSlug: slug, scrollY: window.scrollY || 0 });
@@ -234,6 +238,7 @@ export default function TvSearch() {
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
           onKeyDown={handleInputKeyDown}
+          onFocus={handleSearchInputFocus}
           placeholder="Nhập tên phim..."
           className="tv-search__input"
         />

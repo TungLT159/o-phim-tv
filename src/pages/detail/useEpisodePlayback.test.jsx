@@ -56,6 +56,7 @@ beforeEach(() => {
   Hls.isSupported.mockReturnValue(false);
   window.HTMLMediaElement.prototype.canPlayType = jest.fn(() => "maybe");
   window.HTMLMediaElement.prototype.load = jest.fn();
+  window.HTMLMediaElement.prototype.pause = jest.fn();
   window.HTMLMediaElement.prototype.play = jest.fn(() => Promise.resolve());
   prefetchEpisodeLink.mockResolvedValue({ playlistUrl: "/tap-2.m3u8" });
 });
@@ -161,4 +162,25 @@ test("does not play or prefetch after an HLS manifest from a stale load", async 
 
   expect(window.HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
   expect(prefetchEpisodeLink).not.toHaveBeenCalled();
+});
+
+test("stops and clears native playback on unmount", async () => {
+  getEpisodeLink.mockResolvedValue({ playlistUrl: "/tap-1.m3u8" });
+
+  const { unmount } = render(
+    <Harness episode={{ name: "1", slug: "tap-1", episodeGroupIndex: 0 }} />,
+  );
+
+  const video = await screen.findByTestId("video");
+  await waitFor(() => expect(video.src).toContain("/tap-1.m3u8"));
+
+  const removeAttributeSpy = jest.spyOn(video, "removeAttribute");
+  video.pause = jest.fn();
+  video.load = jest.fn();
+
+  unmount();
+
+  expect(video.pause).toHaveBeenCalledTimes(1);
+  expect(removeAttributeSpy).toHaveBeenCalledWith("src");
+  expect(video.load).toHaveBeenCalledTimes(1);
 });

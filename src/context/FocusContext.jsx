@@ -15,6 +15,17 @@ const FocusContext = createContext(null);
 // Grid of focusable refs: grid[zone][row][col] = ref
 // zone 0 = sidebar, zone 1 = content
 
+const shouldKeepDomFocus = (element) => Boolean(
+  element &&
+  element !== document.body &&
+  (
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.isContentEditable ||
+    element.closest?.('.custom-video-player')
+  )
+);
+
 function createInitialState() {
   return {
     zone: 1,
@@ -539,15 +550,7 @@ export function FocusProvider({ children }) {
 
   const focusCurrent = useCallback((scrollBehavior = 'smooth', retryCount = 0) => {
     const activeElement = document.activeElement;
-    if (
-      activeElement &&
-      activeElement !== document.body &&
-      (
-        activeElement.tagName === 'INPUT' ||
-        activeElement.tagName === 'TEXTAREA' ||
-        activeElement.isContentEditable
-      )
-    ) {
+    if (shouldKeepDomFocus(activeElement)) {
       return;
     }
 
@@ -744,18 +747,10 @@ export function useFocusable(zone, row, col) {
     if (!focused || !element) return;
 
     const activeElement = document.activeElement;
-    const activeElementIsTextEditable = activeElement &&
-      activeElement !== document.body &&
-      (
-        activeElement.tagName === 'INPUT' ||
-        activeElement.tagName === 'TEXTAREA' ||
-        activeElement.isContentEditable
-      );
-
     if (
       wasFocused &&
       lastFocusSyncElementRef.current === element &&
-      activeElementIsTextEditable
+      shouldKeepDomFocus(activeElement)
     ) {
       return;
     }

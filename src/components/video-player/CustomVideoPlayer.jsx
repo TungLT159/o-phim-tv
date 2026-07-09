@@ -277,6 +277,7 @@ const CustomVideoPlayer = ({
   const tvAutoPlayTriggeredRef = useRef(false);
   const nextEpisodeTriggeredRef = useRef(false);
   const resumeAfterSeekRef = useRef(null);
+  const appPlaybackStoppedRef = useRef(false);
   const seekWasPlayingRef = useRef(false);
   const remoteSeekActiveRef = useRef(false);
   const [tvAutoPlayCountdown, setTvAutoPlayCountdown] = useState(null);
@@ -293,12 +294,16 @@ const CustomVideoPlayer = ({
 
   const getVideo = useCallback(() => videoRef?.current, [videoRef]);
 
-  const stopAndClearVideo = useCallback((video) => {
+  const stopAndClearVideo = useCallback((video, { forceLoad = false } = {}) => {
     if (!video) return;
 
     video.pause?.();
+    video.muted = false;
+    video.volume = 1;
     video.removeAttribute?.("src");
-    video.load?.();
+    if (forceLoad) {
+      video.load?.();
+    }
   }, []);
 
   const clearTvAutoPlayTimer = useCallback(() => {
@@ -340,6 +345,14 @@ const CustomVideoPlayer = ({
     }
   }, []);
 
+  const hideControlsWhenFocusIsOutsideControlButtons = useCallback(() => {
+    if (document.activeElement?.closest?.('.custom-video-player__controls')) {
+      return;
+    }
+
+    setShowControls(false);
+  }, []);
+
   const revealControls = useCallback(() => {
     const video = getVideo();
     setShowControls(true);
@@ -347,10 +360,10 @@ const CustomVideoPlayer = ({
 
     if (video && !video.paused) {
       hideControlsTimerRef.current = setTimeout(() => {
-        setShowControls(false);
+        hideControlsWhenFocusIsOutsideControlButtons();
       }, 2500);
     }
-  }, [clearHideControlsTimer, getVideo]);
+  }, [clearHideControlsTimer, getVideo, hideControlsWhenFocusIsOutsideControlButtons]);
 
   const togglePlay = useCallback(() => {
     const video = getVideo();
@@ -383,6 +396,31 @@ const CustomVideoPlayer = ({
       stopAndClearVideo(video);
     };
   }, [clearResumeAfterSeek, clearTvAutoPlayTimer, stopAndClearVideo, videoRef]);
+
+  const stopPlaybackForAppLifecycle = useCallback(() => {
+    appPlaybackStoppedRef.current = true;
+    clearResumeAfterSeek();
+    clearTvAutoPlayTimer();
+    stopAndClearVideo(getVideo(), { forceLoad: true });
+  }, [clearResumeAfterSeek, clearTvAutoPlayTimer, getVideo, stopAndClearVideo]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopPlaybackForAppLifecycle();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", stopPlaybackForAppLifecycle);
+    window.addEventListener("beforeunload", stopPlaybackForAppLifecycle);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", stopPlaybackForAppLifecycle);
+      window.removeEventListener("beforeunload", stopPlaybackForAppLifecycle);
+    };
+  }, [stopPlaybackForAppLifecycle]);
 
   const seekToTime = useCallback(
     (time, { resumePlayback = false, forceResumePlayback = false } = {}) => {
@@ -577,6 +615,10 @@ const CustomVideoPlayer = ({
   );
 
   const closeSidebar = useCallback(() => {
+    const root = playerRef.current;
+    focusElement(root, ".custom-video-player__progress") ||
+      focusElement(root, ".custom-video-player__control-btn--play") ||
+      focusElement(root, ".custom-video-player__center-play");
     setSidebarOpen(false);
     revealControls();
   }, [revealControls]);
@@ -626,6 +668,10 @@ const CustomVideoPlayer = ({
   const focusDefaultPlayerTarget = useCallback(() => {
     const root = playerRef.current;
     if (!root) return false;
+
+    if (isConcretePlayerFocusTarget(root, document.activeElement)) {
+      return true;
+    }
 
     if (focusTimeline()) return true;
 
@@ -994,6 +1040,7 @@ const CustomVideoPlayer = ({
       const shouldUseControlNavigation = Boolean(isInControls);
       const isCloseBtn = document.activeElement?.closest('.custom-video-player__close-btn');
       const autoplayCard = document.activeElement?.closest('.autoplay-card');
+      const hasConcretePlayerFocus = isConcretePlayerFocusTarget(playerRef.current, activeElement);
 
       if (autoplayCard && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
         event.preventDefault();
@@ -1013,7 +1060,7 @@ const CustomVideoPlayer = ({
 
       if (
         ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) &&
-        (!playerRef.current?.contains(document.activeElement) || (isPlaying && !showControls))
+        (!playerRef.current?.contains(activeElement) || (isPlaying && !showControls && !hasConcretePlayerFocus))
       ) {
         revealControls();
         focusDefaultPlayerTarget();
@@ -1137,12 +1184,16 @@ const CustomVideoPlayer = ({
   useEffect(() => {
     if (!selfContained) return;
 
+    appPlaybackStoppedRef.current = false;
+
     const video = videoRef.current;
     const epName = episode?.slug || episode?.name;
     
     if (!video || !epName) return;
 
-    video.play?.()?.catch?.(() => {});
+    if (document.visibilityState !== "hidden") {
+      video.play?.()?.catch?.(() => {});
+    }
 
     let cancelled = false;
     let hls = null;
@@ -1150,7 +1201,7 @@ const CustomVideoPlayer = ({
     let manifestTimeout = null;
 
     const playAndPrefetch = () => {
-      if (cancelled) return;
+      if (cancelled || appPlaybackStoppedRef.current) return;
       video.play().catch((e) => logPlaybackError('[CustomVideoPlayer] play error:', e));
     };
 
@@ -1169,7 +1220,7 @@ const CustomVideoPlayer = ({
             epName,
             episode.episodeGroupIndex,
           );
-          if (cancelled) return;
+          if (cancelled || appPlaybackStoppedRef.current) return;
           sourceUrl = link?.playlistUrl || link?.link_m3u8;
           embedUrl = link?.link_embed;
         }
@@ -1409,7 +1460,7 @@ const CustomVideoPlayer = ({
         showControls || !isPlaying ? "is-active" : "is-idle"
       }`}
       onMouseMove={revealControls}
-      onMouseLeave={() => isPlaying && setShowControls(false)}
+      onMouseLeave={() => isPlaying && hideControlsWhenFocusIsOutsideControlButtons()}
       onTouchStart={handleSurfaceTap}
     >
       <video 

@@ -55,6 +55,12 @@ const createDeferredSearch = () => {
   return { promise, resolve };
 };
 
+const focusElement = (element) => {
+  act(() => {
+    element.focus();
+  });
+};
+
 test("stores search results in the session cache", async () => {
   tmdbApi.search.mockResolvedValue({ data: { items: makeResults(2) } });
   render(<MemoryRouter><FocusProvider><TvSearch /></FocusProvider></MemoryRouter>);
@@ -130,9 +136,7 @@ test("does not reapply cached focus or scroll after typing a new search", async 
   expect(scrollToSpy).toHaveBeenCalledTimes(1);
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  act(() => {
-    input.focus();
-  });
+  focusElement(input);
   fireEvent.change(input, { target: { value: "fresh" } });
 
   await waitFor(() => expect(screen.getByText("Fresh Movie")).toBeInTheDocument());
@@ -220,7 +224,7 @@ test("keeps focus in the search input while typing and rendering results", async
   );
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  input.focus();
+  focusElement(input);
 
   fireEvent.change(input, { target: { value: "a" } });
 
@@ -242,7 +246,7 @@ test("moves focus from the search input to the first result on ArrowDown", async
   );
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  input.focus();
+  focusElement(input);
   fireEvent.change(input, { target: { value: "movie" } });
 
   await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
@@ -271,7 +275,7 @@ test("keeps editing keys inside the focused search input", async () => {
   );
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  input.focus();
+  focusElement(input);
   fireEvent.change(input, { target: { value: "movie" } });
 
   await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
@@ -349,6 +353,38 @@ test("keeps focus in the search input after returning from the first result row"
   expect(input).toHaveFocus();
 });
 
+test("keeps focus in the search input when new results replace the previously focused first row", async () => {
+  tmdbApi.search
+    .mockResolvedValueOnce({ data: { items: makeResults(3) } })
+    .mockResolvedValueOnce({ data: { items: [{ slug: "fresh-movie", name: "Fresh Movie" }] } });
+
+  render(
+    <MemoryRouter>
+      <FocusProvider>
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+
+  await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
+
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  expect(firstCard).toHaveFocus();
+
+  fireEvent.keyDown(firstCard, { key: "ArrowUp" });
+  expect(input).toHaveFocus();
+
+  fireEvent.change(input, { target: { value: "fresh" } });
+
+  await waitFor(() => expect(screen.getByText("Fresh Movie")).toBeInTheDocument());
+  expect(input).toHaveFocus();
+});
+
 test("uses the rendered grid column count so ArrowDown can reach later visible rows", async () => {
   tmdbApi.search.mockResolvedValue({
     data: { items: makeResults(6) },
@@ -363,7 +399,7 @@ test("uses the rendered grid column count so ArrowDown can reach later visible r
   );
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  input.focus();
+  focusElement(input);
   fireEvent.change(input, { target: { value: "movie" } });
 
   await waitFor(() => expect(screen.getByText("Movie 6")).toBeInTheDocument());
@@ -381,7 +417,7 @@ test("uses the rendered grid column count so ArrowDown can reach later visible r
   });
   fireEvent(window, new Event("resize"));
 
-  input.focus();
+  focusElement(input);
   fireEvent.keyDown(input, { key: "ArrowDown" });
   expect(cards[0]).toHaveFocus();
 
@@ -404,7 +440,7 @@ test("scrolls newly focused lower result rows into view while moving down", asyn
   );
 
   const input = screen.getByPlaceholderText("Nhập tên phim...");
-  input.focus();
+  focusElement(input);
   fireEvent.change(input, { target: { value: "movie" } });
 
   await waitFor(() => expect(screen.getByText("Movie 8")).toBeInTheDocument());
