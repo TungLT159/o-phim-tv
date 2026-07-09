@@ -184,25 +184,27 @@ test("keeps autoplay usable when localStorage throws", async () => {
   const setItemSpy = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
     throw new Error("storage write failed");
   });
-  mockPlayerWithAutoplayToggle();
+  try {
+    mockPlayerWithAutoplayToggle();
 
-  renderTvDetail();
-  fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
+    renderTvDetail();
+    fireEvent.click(await screen.findByRole("button", { name: /Phát Tập 2/i }));
 
-  expect(await screen.findByRole("button", { name: "Tắt tự động phát" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+    expect(await screen.findByRole("button", { name: "Tắt tự động phát" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
-  fireEvent.click(screen.getByRole("button", { name: "Tắt tự động phát" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tắt tự động phát" }));
 
-  expect(await screen.findByRole("button", { name: "Bật tự động phát" })).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
-
-  getItemSpy.mockRestore();
-  setItemSpy.mockRestore();
+    expect(await screen.findByRole("button", { name: "Bật tự động phát" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  } finally {
+    getItemSpy.mockRestore();
+    setItemSpy.mockRestore();
+  }
 });
 
 test("scrolls TV detail to the hero when the play button receives focus", async () => {

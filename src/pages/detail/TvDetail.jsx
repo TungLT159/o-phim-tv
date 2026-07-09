@@ -20,7 +20,25 @@ import {
 } from '../../utils/watchHistoryManager';
 import './tv-detail.scss';
 
+const AUTOPLAY_PREFERENCE_KEY = 'ophim:auto-play-enabled';
+
 const getEpisodeProgressKey = (episode) => episode?.episodeKey || episode?.name || '';
+
+const readAutoPlayPreference = () => {
+  try {
+    return window.localStorage?.getItem(AUTOPLAY_PREFERENCE_KEY) !== 'false';
+  } catch (error) {
+    return true;
+  }
+};
+
+const writeAutoPlayPreference = (enabled) => {
+  try {
+    window.localStorage?.setItem(AUTOPLAY_PREFERENCE_KEY, String(enabled));
+  } catch (error) {
+    // Keep the current session state even when persistent storage is unavailable.
+  }
+};
 
 function PlayButton({ label, onClick, onFocus }) {
   const { ref, focused } = useFocusable(1, 0, 0);
@@ -43,7 +61,7 @@ export default function TvDetail() {
   const [similar, setSimilar] = useState([]);
   const [tmdbBackdrop, setTmdbBackdrop] = useState('');
   const [tmdbOverview, setTmdbOverview] = useState('');
-  const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState(readAutoPlayPreference);
   const [savedProgress, setSavedProgress] = useState(null);
   const videoRef = useRef(null);
 
@@ -227,6 +245,14 @@ export default function TvDetail() {
     if (!canGoNextEpisode) return;
     selectEpisode(episodeList[currentEpisodeIndex + 1]);
   }, [canGoNextEpisode, currentEpisodeIndex, episodeList, selectEpisode]);
+
+  const handleToggleAutoPlay = useCallback(() => {
+    setAutoPlayEnabled((value) => {
+      const nextValue = !value;
+      writeAutoPlayPreference(nextValue);
+      return nextValue;
+    });
+  }, []);
   
   const handleClose = useCallback(() => setPlaying(false), []);
 
@@ -288,7 +314,7 @@ export default function TvDetail() {
             nextEpisodeName={canGoNextEpisode ? episodeList[currentEpisodeIndex + 1]?.name : undefined}
             onNextEpisode={handleNextEpisode}
             autoPlayEnabled={autoPlayEnabled}
-            onToggleAutoPlay={() => setAutoPlayEnabled((value) => !value)}
+            onToggleAutoPlay={handleToggleAutoPlay}
             onClose={handleClose}
           />
         </div>
