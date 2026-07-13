@@ -3,6 +3,7 @@
   "version": "0.4.5",
   "private": true,
   "dependencies": {
+    "@noriginmedia/norigin-spatial-navigation": "^3.2.1",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",

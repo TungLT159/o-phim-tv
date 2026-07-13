@@ -66,16 +66,55 @@ function getRustCleanCommand(rootDir = process.cwd()) {
   };
 }
 
+function getTauriConfigPath(rootDir = process.cwd()) {
+  return toPosix(path.join(rootDir, 'src-tauri', 'tauri.conf.json'));
+}
+
+function readTauriConfig(rootDir = process.cwd()) {
+  const configPath = getTauriConfigPath(rootDir);
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Missing Tauri config: ${configPath}`);
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Invalid Tauri config JSON: ${configPath}`);
+  }
+}
+
+function getTauriBuildConfig(rootDir = process.cwd()) {
+  const config = readTauriConfig(rootDir);
+  return config.build || {};
+}
+
 function getApkPath(rootDir = process.cwd()) {
   return toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'apk', 'arm', 'release', 'app-arm-release.apk'));
 }
 
 function getFrontendBuildCommand(rootDir = process.cwd()) {
-  return { command: 'npm', args: ['run', 'build'], cwd: toPosix(rootDir) };
+  const buildConfig = getTauriBuildConfig(rootDir);
+  const command = buildConfig.beforeBuildCommand;
+  if (typeof command !== 'string' || command.trim() === '') {
+    throw new Error('Missing Tauri build.beforeBuildCommand in src-tauri/tauri.conf.json');
+  }
+
+  return {
+    command,
+    args: [],
+    cwd: toPosix(rootDir),
+    shell: true,
+  };
 }
 
 function getFrontendBuildDir(rootDir = process.cwd()) {
-  return toPosix(path.join(rootDir, 'build'));
+  const buildConfig = getTauriBuildConfig(rootDir);
+  const frontendDist = buildConfig.frontendDist;
+  if (typeof frontendDist !== 'string' || frontendDist.trim() === '') {
+    throw new Error('Missing Tauri build.frontendDist in src-tauri/tauri.conf.json');
+  }
+
+  return toPosix(path.resolve(rootDir, 'src-tauri', frontendDist));
 }
 
 function getFrontendBuildOutputPath(rootDir = process.cwd()) {
@@ -185,10 +224,23 @@ function run(command, args, options = {}) {
   }
 }
 
+function runShell(command, options = {}) {
+  const result = spawnSync(command, {
+    stdio: 'inherit',
+    shell: true,
+    ...options,
+  });
+
+  if (result.status !== 0) {
+    const status = result.status ?? result.signal ?? 'unknown';
+    throw new Error(`${command} failed with status ${status}`);
+  }
+}
+
 function buildFrontend(rootDir = process.cwd()) {
   const startedAt = Date.now();
   const frontendBuild = getFrontendBuildCommand(rootDir);
-  run(frontendBuild.command, frontendBuild.args, { cwd: frontendBuild.cwd });
+  runShell(frontendBuild.command, { cwd: frontendBuild.cwd });
   return validateFreshFrontendBuild(rootDir, startedAt);
 }
 
@@ -401,6 +453,8 @@ module.exports = {
   getGradleCleanCommand,
   getGradleBuildCommand,
   getRustCleanCommand,
+  getTauriConfigPath,
+  readTauriConfig,
   getFrontendBuildDir,
   getFrontendBuildCommand,
   getFrontendBuildOutputPath,

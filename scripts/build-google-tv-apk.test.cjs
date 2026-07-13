@@ -10,6 +10,8 @@ const {
   getGradleCleanCommand,
   getGradleBuildCommand,
   getRustCleanCommand,
+  getTauriConfigPath,
+  readTauriConfig,
   getFrontendBuildDir,
   getFrontendBuildCommand,
   getFrontendBuildOutputPath,
@@ -29,6 +31,26 @@ const {
   ensureFreshAndroidVersion,
   ensureGoogleTvManifestCompatibility,
 } = require('./build-google-tv-apk.cjs');
+
+function writeTauriConfig(rootDir, build = {}) {
+  const configPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json');
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        build: {
+          beforeBuildCommand: 'cross-env NODE_OPTIONS=--openssl-legacy-provider react-scripts build',
+          frontendDist: '../build',
+          ...build,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  return configPath;
+}
 
 test('plans the Tauri ARMv7 APK build for Bravia VH21 Google TV', () => {
   const plan = getBuildPlan('win32');
@@ -74,34 +96,100 @@ test('plans a Rust package clean so Tauri embeds the latest frontend build', () 
   });
 });
 
-test('returns the React production build directory for cache cleanup', () => {
-  assert.equal(getFrontendBuildDir('C:/repo'), 'C:/repo/build');
+test('returns the Tauri config path used by the Android builder', () => {
+  assert.equal(getTauriConfigPath('C:/repo'), 'C:/repo/src-tauri/tauri.conf.json');
 });
 
-test('plans a fresh React production build before Android packaging', () => {
-  assert.deepEqual(getFrontendBuildCommand('C:/repo'), {
-    command: 'npm',
-    args: ['run', 'build'],
-    cwd: 'C:/repo',
+test('reads Tauri config for frontend build metadata', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tauri-config-read-'));
+  writeTauriConfig(rootDir, {
+    beforeBuildCommand: 'npm run custom-build',
+    frontendDist: '../custom-dist',
+  });
+
+  const config = readTauriConfig(rootDir);
+
+  assert.equal(config.build.beforeBuildCommand, 'npm run custom-build');
+  assert.equal(config.build.frontendDist, '../custom-dist');
+});
+
+test('resolves the configured Tauri frontend distribution directory', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'configured-frontend-dist-'));
+  writeTauriConfig(rootDir, {
+    frontendDist: '../custom-dist',
+  });
+
+  assert.equal(getFrontendBuildDir(rootDir), path.join(rootDir, 'custom-dist').replace(/\\/g, '/'));
+});
+
+test('plans the configured Tauri frontend build before Android packaging', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'configured-frontend-command-'));
+  writeTauriConfig(rootDir, {
+    beforeBuildCommand: 'npm run custom-build',
+  });
+
+  assert.deepEqual(getFrontendBuildCommand(rootDir), {
+    command: 'npm run custom-build',
+    args: [],
+    cwd: rootDir.replace(/\\/g, '/'),
+    shell: true,
   });
 });
 
-test('returns the React production build output path', () => {
-  assert.equal(getFrontendBuildOutputPath('C:/repo'), 'C:/repo/build/index.html');
+test('returns the configured Tauri frontend build output path', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'configured-frontend-output-'));
+  writeTauriConfig(rootDir, {
+    frontendDist: '../custom-dist',
+  });
+
+  assert.equal(
+    getFrontendBuildOutputPath(rootDir),
+    path.join(rootDir, 'custom-dist', 'index.html').replace(/\\/g, '/'),
+  );
+});
+
+test('throws a clear error when Tauri beforeBuildCommand is missing', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'missing-before-build-'));
+  writeTauriConfig(rootDir, {
+    beforeBuildCommand: '',
+  });
+
+  assert.throws(
+    () => getFrontendBuildCommand(rootDir),
+    /Missing Tauri build.beforeBuildCommand/,
+  );
+});
+
+test('throws a clear error when Tauri frontendDist is missing', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'missing-frontend-dist-'));
+  writeTauriConfig(rootDir, {
+    frontendDist: '',
+  });
+
+  assert.throws(
+    () => getFrontendBuildDir(rootDir),
+    /Missing Tauri build.frontendDist/,
+  );
 });
 
 test('throws a clear error when the React production build output is missing', () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-missing-'));
+  writeTauriConfig(rootDir, {
+    frontendDist: '../custom-dist',
+  });
 
   assert.throws(
     () => validateFreshFrontendBuild(rootDir),
-    /Missing React build output: .*build.*index\.html/,
+    /Missing React build output: .*custom-dist.*index\.html/,
   );
 });
 
 test('throws a clear error when the React production build output is stale', () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-stale-'));
-  const outputPath = path.join(rootDir, 'build', 'index.html');
+  writeTauriConfig(rootDir, {
+    frontendDist: '../custom-dist',
+  });
+  const outputPath = path.join(rootDir, 'custom-dist', 'index.html');
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, '<html></html>');
   const startedAt = Date.now();
@@ -110,13 +198,16 @@ test('throws a clear error when the React production build output is stale', () 
 
   assert.throws(
     () => validateFreshFrontendBuild(rootDir, startedAt),
-    /Stale React build output: .*build.*index\.html/,
+    /Stale React build output: .*custom-dist.*index\.html/,
   );
 });
 
 test('returns the fresh React production build output path', () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-fresh-'));
-  const outputPath = path.join(rootDir, 'build', 'index.html');
+  writeTauriConfig(rootDir, {
+    frontendDist: '../custom-dist',
+  });
+  const outputPath = path.join(rootDir, 'custom-dist', 'index.html');
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, '<html></html>');
   const startedAt = Date.now();
@@ -126,6 +217,7 @@ test('returns the fresh React production build output path', () => {
 
 test('removes stale native library and APK outputs before Google TV packaging', () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-android-output-'));
+  writeTauriConfig(rootDir);
   const armPaths = getArmLibraryPaths(rootDir);
   const apkPath = getApkPath(rootDir);
   [armPaths.source, armPaths.destination, apkPath].forEach((filePath) => {
@@ -143,6 +235,7 @@ test('removes stale native library and APK outputs before Google TV packaging', 
 
 test('removes the stale React build directory before rebuilding frontend assets', () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-react-build-dir-'));
+  writeTauriConfig(rootDir);
   const staleBuildFile = path.join(rootDir, 'build', 'static', 'js', 'old.js');
   fs.mkdirSync(path.dirname(staleBuildFile), { recursive: true });
   fs.writeFileSync(staleBuildFile, 'old frontend');
