@@ -614,14 +614,21 @@ const CustomVideoPlayer = ({
     [togglePlay],
   );
 
+  const restoreFocusAfterSidebarClose = useCallback(() => {
+    requestAnimationFrame(() => {
+      const root = playerRef.current;
+      focusElement(root, ".custom-video-player__progress") ||
+        focusElement(root, ".custom-video-player__control-btn--play") ||
+        focusElement(root, ".custom-video-player__center-play") ||
+        focusElement(root, ".custom-video-player__close-btn");
+    });
+  }, []);
+
   const closeSidebar = useCallback(() => {
-    const root = playerRef.current;
-    focusElement(root, ".custom-video-player__progress") ||
-      focusElement(root, ".custom-video-player__control-btn--play") ||
-      focusElement(root, ".custom-video-player__center-play");
     setSidebarOpen(false);
     revealControls();
-  }, [revealControls]);
+    restoreFocusAfterSidebarClose();
+  }, [restoreFocusAfterSidebarClose, revealControls]);
 
   const handleEpisodeSelect = useCallback(
     (selectedEpisode) => {
@@ -1015,6 +1022,8 @@ const CustomVideoPlayer = ({
         } else if (event.key === "Backspace" || event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
+          event.nativeEvent?.stopImmediatePropagation?.();
+          event.stopImmediatePropagation?.();
           closeSidebar();
         }
         return;

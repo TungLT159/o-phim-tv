@@ -57,20 +57,27 @@ const EpisodeSidebar = ({
 
   const firstFocusableRow = 1;
 
+  const handleBackKey = useCallback((e) => {
+    if (e.key !== 'Backspace' && e.key !== 'Escape') return false;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.nativeEvent?.stopImmediatePropagation?.();
+    e.stopImmediatePropagation?.();
+    onClose();
+    return true;
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Backspace' || e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
+      handleBackKey(e);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleBackKey]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -120,6 +127,7 @@ const EpisodeSidebar = ({
       role="dialog"
       aria-modal="true"
       aria-label="Danh sách tập"
+      onKeyDown={handleBackKey}
     >
       <div className="episode-sidebar__header">
         <h2 className="episode-sidebar__title">Tập phim</h2>

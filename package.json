@@ -34,7 +34,8 @@
     "tauri:build": "tauri build",
     "tauri:android:init": "tauri android init",
     "tauri:android:dev": "tauri android dev",
-    "tauri:android:build": "tauri android build",
+    "tauri:android:build": "npm run tauri:android:build:google-tv",
+    "tauri:android:build:raw": "tauri android build",
     "tauri:android:build:google-tv": "node scripts/build-google-tv-apk.cjs",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
+const FRONTEND_BUILD_TIMESTAMP_TOLERANCE_MS = 2000;
+
 function toPosix(value) {
   return value.replace(/\\/g, '/');
 }
@@ -27,6 +29,10 @@ function getAndroidManifestPath(rootDir = process.cwd()) {
   return path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
 }
 
+function getAndroidTauriPropertiesPath(rootDir = process.cwd()) {
+  return toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'tauri.properties'));
+}
+
 function getAndroidDir(rootDir = process.cwd()) {
   return path.join(rootDir, 'src-tauri', 'gen', 'android');
 }
@@ -42,8 +48,91 @@ function getGradleBuildCommand(rootDir = process.cwd(), platform = process.platf
   };
 }
 
+function getGradleCleanCommand(rootDir = process.cwd(), platform = process.platform) {
+  const androidDir = getAndroidDir(rootDir);
+  const gradle = platform === 'win32' ? 'gradlew.bat' : './gradlew';
+  return {
+    command: toPosix(path.join(androidDir, gradle)),
+    args: ['clean'],
+    cwd: toPosix(androidDir),
+  };
+}
+
+function getRustCleanCommand(rootDir = process.cwd()) {
+  return {
+    command: 'cargo',
+    args: ['clean', '--target', 'armv7-linux-androideabi'],
+    cwd: toPosix(path.join(rootDir, 'src-tauri')),
+  };
+}
+
 function getApkPath(rootDir = process.cwd()) {
   return toPosix(path.join(rootDir, 'src-tauri', 'gen', 'android', 'app', 'build', 'outputs', 'apk', 'arm', 'release', 'app-arm-release.apk'));
+}
+
+function getFrontendBuildCommand(rootDir = process.cwd()) {
+  return { command: 'npm', args: ['run', 'build'], cwd: toPosix(rootDir) };
+}
+
+function getFrontendBuildDir(rootDir = process.cwd()) {
+  return toPosix(path.join(rootDir, 'build'));
+}
+
+function getFrontendBuildOutputPath(rootDir = process.cwd()) {
+  return toPosix(path.join(getFrontendBuildDir(rootDir), 'index.html'));
+}
+
+function validateFreshFrontendBuild(rootDir = process.cwd(), startedAt = Date.now()) {
+  const outputPath = getFrontendBuildOutputPath(rootDir);
+  if (!fs.existsSync(outputPath)) {
+    throw new Error(`Missing React build output: ${outputPath}`);
+  }
+
+  const stats = fs.statSync(outputPath);
+  if (stats.mtimeMs + FRONTEND_BUILD_TIMESTAMP_TOLERANCE_MS < startedAt) {
+    throw new Error(`Stale React build output: ${outputPath}`);
+  }
+
+  return outputPath;
+}
+
+function validateFreshFile(filePath, startedAt, label) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${filePath}`);
+  }
+
+  const stats = fs.statSync(filePath);
+  if (stats.mtimeMs + FRONTEND_BUILD_TIMESTAMP_TOLERANCE_MS < startedAt) {
+    throw new Error(`Stale ${label}: ${filePath}`);
+  }
+
+  return filePath;
+}
+
+function validateFreshArmLibrary(rootDir = process.cwd(), startedAt = Date.now()) {
+  const paths = getArmLibraryPaths(rootDir);
+  validateFreshFile(paths.source, startedAt, 'ARM native library');
+  validateFreshFile(paths.destination, startedAt, 'ARM native library');
+  return paths;
+}
+
+function validateFreshApk(rootDir = process.cwd(), startedAt = Date.now()) {
+  return validateFreshFile(getApkPath(rootDir), startedAt, 'Google TV APK');
+}
+
+function cleanStaleAndroidBuildOutputs(rootDir = process.cwd()) {
+  const armPaths = getArmLibraryPaths(rootDir);
+  const outputPaths = [getFrontendBuildDir(rootDir), armPaths.source, armPaths.destination, getApkPath(rootDir)];
+  const removed = [];
+
+  for (const outputPath of outputPaths) {
+    if (fs.existsSync(outputPath)) {
+      fs.rmSync(outputPath, { force: true, recursive: true });
+      removed.push(outputPath);
+    }
+  }
+
+  return removed;
 }
 
 function getTauriIconPaths(rootDir = process.cwd()) {
@@ -94,6 +183,18 @@ function run(command, args, options = {}) {
     const status = result.status ?? result.signal ?? 'unknown';
     throw new Error(`${command} ${args.join(' ')} failed with status ${status}`);
   }
+}
+
+function buildFrontend(rootDir = process.cwd()) {
+  const startedAt = Date.now();
+  const frontendBuild = getFrontendBuildCommand(rootDir);
+  run(frontendBuild.command, frontendBuild.args, { cwd: frontendBuild.cwd });
+  return validateFreshFrontendBuild(rootDir, startedAt);
+}
+
+function cleanRustPackage(rootDir = process.cwd()) {
+  const rustClean = getRustCleanCommand(rootDir);
+  run(rustClean.command, rustClean.args, { cwd: rustClean.cwd });
 }
 
 function copyArmLibrary(rootDir = process.cwd()) {
@@ -151,6 +252,21 @@ function prepareAndroidTvBanner(rootDir = process.cwd()) {
   }
 
   return bannerPaths;
+}
+
+function ensureFreshAndroidVersion(rootDir = process.cwd(), now = Date.now()) {
+  const propertiesPath = getAndroidTauriPropertiesPath(rootDir);
+  if (!fs.existsSync(propertiesPath)) {
+    throw new Error(`Missing Android Tauri properties: ${propertiesPath}`);
+  }
+
+  const versionCode = Math.floor(now / 1000);
+  const properties = fs.readFileSync(propertiesPath, 'utf8');
+  const updated = /tauri\.android\.versionCode=\d+/.test(properties)
+    ? properties.replace(/tauri\.android\.versionCode=\d+/, `tauri.android.versionCode=${versionCode}`)
+    : `${properties.trimEnd()}\ntauri.android.versionCode=${versionCode}\n`;
+  fs.writeFileSync(propertiesPath, updated);
+  return versionCode;
 }
 
 function addUsesFeature(manifest, featureName, required) {
@@ -238,6 +354,10 @@ function verifyApk(apkPath) {
 
 function buildGoogleTvApk(rootDir = process.cwd()) {
   const plan = getBuildPlan();
+  const androidBuildStartedAt = Date.now();
+  cleanStaleAndroidBuildOutputs(rootDir);
+  buildFrontend(rootDir);
+  cleanRustPackage(rootDir);
   prepareTauriIcons(rootDir);
   prepareAndroidLauncherIcons(rootDir);
   prepareAndroidTvBanner(rootDir);
@@ -250,16 +370,17 @@ function buildGoogleTvApk(rootDir = process.cwd()) {
     copyArmLibrary(rootDir);
   }
 
+  validateFreshArmLibrary(rootDir, androidBuildStartedAt);
   prepareAndroidLauncherIcons(rootDir);
   prepareAndroidTvBanner(rootDir);
   updateGoogleTvManifest(rootDir);
+  const gradleClean = getGradleCleanCommand(rootDir);
+  run(gradleClean.command, gradleClean.args, { cwd: gradleClean.cwd });
+  ensureFreshAndroidVersion(rootDir, androidBuildStartedAt);
   const gradleBuild = getGradleBuildCommand(rootDir);
   run(gradleBuild.command, gradleBuild.args, { cwd: gradleBuild.cwd });
 
-  const apkPath = getApkPath(rootDir);
-  if (!fs.existsSync(apkPath)) {
-    throw new Error(`APK was not created: ${apkPath}`);
-  }
+  const apkPath = validateFreshApk(rootDir, androidBuildStartedAt);
 
   verifyApk(apkPath);
   console.log(`Google TV signed APK: ${apkPath}`);
@@ -277,15 +398,28 @@ if (require.main === module) {
 
 module.exports = {
   getBuildPlan,
+  getGradleCleanCommand,
   getGradleBuildCommand,
+  getRustCleanCommand,
+  getFrontendBuildDir,
+  getFrontendBuildCommand,
+  getFrontendBuildOutputPath,
+  validateFreshFrontendBuild,
+  cleanStaleAndroidBuildOutputs,
+  validateFreshArmLibrary,
+  validateFreshApk,
+  buildFrontend,
+  cleanRustPackage,
   getArmLibraryPaths,
   getApkPath,
   getTauriIconPaths,
   getAndroidLauncherIconPaths,
   getAndroidTvBannerPaths,
+  getAndroidTauriPropertiesPath,
   prepareTauriIcons,
   prepareAndroidLauncherIcons,
   prepareAndroidTvBanner,
+  ensureFreshAndroidVersion,
   ensureGoogleTvManifestCompatibility,
   buildGoogleTvApk,
 };

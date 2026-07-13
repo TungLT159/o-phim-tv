@@ -232,6 +232,42 @@ test("keeps focus in the search input while typing and rendering results", async
   expect(input).toHaveFocus();
 });
 
+test("keeps focus in the search input when asynchronous TV results replace an older grid", async () => {
+  const firstSearch = createDeferredSearch();
+  const secondSearch = createDeferredSearch();
+  tmdbApi.search
+    .mockReturnValueOnce(firstSearch.promise)
+    .mockReturnValueOnce(secondSearch.promise);
+
+  render(
+    <MemoryRouter>
+      <FocusProvider>
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "old" } });
+
+  await act(async () => {
+    firstSearch.resolve({ data: { items: makeResults(3) } });
+    await Promise.resolve();
+  });
+  await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
+  expect(input).toHaveFocus();
+
+  fireEvent.change(input, { target: { value: "new" } });
+  await act(async () => {
+    secondSearch.resolve({ data: { items: [{ slug: "new-movie", name: "New Movie" }] } });
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(screen.getByText("New Movie")).toBeInTheDocument());
+  expect(input).toHaveFocus();
+});
+
 test("moves focus from the search input to the first result on ArrowDown", async () => {
   tmdbApi.search.mockResolvedValue({
     data: { items: makeResults(3) },
@@ -286,6 +322,33 @@ test("keeps editing keys inside the focused search input", async () => {
   });
 
   expect(historyBackSpy).not.toHaveBeenCalled();
+  historyBackSpy.mockRestore();
+});
+
+test("does not route global Backspace or Escape away from the focused search input", async () => {
+  const historyBackSpy = jest.spyOn(window.history, "back").mockImplementation(() => {});
+  tmdbApi.search.mockResolvedValue({
+    data: { items: makeResults(1) },
+  });
+
+  render(
+    <MemoryRouter>
+      <FocusProvider>
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+
+  fireEvent.keyDown(document, { key: "Backspace" });
+  expect(input).toHaveFocus();
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(input).toHaveFocus();
+  expect(historyBackSpy).not.toHaveBeenCalled();
+
   historyBackSpy.mockRestore();
 });
 

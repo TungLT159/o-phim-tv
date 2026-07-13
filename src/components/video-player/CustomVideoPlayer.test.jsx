@@ -539,13 +539,18 @@ test("opens an episode dialog and selects an episode", () => {
   );
 });
 
-test("closes the episode dialog with Escape", () => {
-  renderPlayerWithEpisodeDialog();
+test("remote Escape closes only the episode dialog while player remains open", async () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
 
   fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  expect(screen.getByRole("button", { name: "Tập 1" })).toHaveFocus();
+
   fireEvent.keyDown(window, { key: "Escape" });
 
   expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
 });
 
 test("episode dialog starts on episode 1 and cycles up to close then back down", () => {
@@ -597,18 +602,110 @@ test("episode dialog keeps remote focus inside the popup", () => {
   expect(episodeOne).toHaveFocus();
 });
 
-test("remote Backspace closes only the episode dialog while player remains open", () => {
+test("remote Backspace closes only the episode dialog while player remains open", async () => {
   const onClose = jest.fn();
   renderPlayerWithEpisodeDialog({ onClose });
 
   fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  expect(screen.getByRole("button", { name: "Tập 1" })).toHaveFocus();
+
   fireEvent.keyDown(window, { key: "Backspace" });
 
   expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
   expect(onClose).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(onClose).not.toHaveBeenCalled();
 });
 
-test("remote Backspace restores player focus after closing the episode dialog", () => {
+test("remote Backspace from the episode dialog does not reach later global handlers", async () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  const globalBackHandler = jest.fn((event) => {
+    if (event.key === "Backspace") {
+      onClose();
+    }
+  });
+  window.addEventListener("keydown", globalBackHandler);
+
+  try {
+    fireEvent.keyDown(window, { key: "Backspace" });
+
+    expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+    expect(globalBackHandler).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
+  } finally {
+    window.removeEventListener("keydown", globalBackHandler);
+  }
+});
+
+test("remote Backspace from a focused episode item does not reach document handlers", async () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+  expect(episodeOne).toHaveFocus();
+
+  const documentBackHandler = jest.fn((event) => {
+    if (event.key === "Backspace") {
+      onClose();
+    }
+  });
+  document.addEventListener("keydown", documentBackHandler);
+
+  try {
+    fireEvent.keyDown(episodeOne, { key: "Backspace" });
+
+    expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+    expect(documentBackHandler).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
+  } finally {
+    document.removeEventListener("keydown", documentBackHandler);
+  }
+});
+
+test("remote Escape from a focused episode item does not reach global handlers", async () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+  expect(episodeOne).toHaveFocus();
+
+  const documentEscapeHandler = jest.fn((event) => {
+    if (event.key === "Escape") {
+      onClose();
+    }
+  });
+  const windowEscapeHandler = jest.fn((event) => {
+    if (event.key === "Escape") {
+      onClose();
+    }
+  });
+  document.addEventListener("keydown", documentEscapeHandler);
+  window.addEventListener("keydown", windowEscapeHandler);
+
+  try {
+    fireEvent.keyDown(episodeOne, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+    expect(documentEscapeHandler).not.toHaveBeenCalled();
+    expect(windowEscapeHandler).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
+  } finally {
+    document.removeEventListener("keydown", documentEscapeHandler);
+    window.removeEventListener("keydown", windowEscapeHandler);
+  }
+});
+
+test("remote Backspace restores player focus after closing the episode dialog", async () => {
   renderPlayerWithEpisodeDialog();
 
   fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
@@ -617,17 +714,17 @@ test("remote Backspace restores player focus after closing the episode dialog", 
   fireEvent.keyDown(window, { key: "Backspace" });
 
   expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Tua video")).toHaveFocus();
+  await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
 });
 
-test("close button restores player focus after closing the episode dialog", () => {
+test("close button restores player focus after closing the episode dialog", async () => {
   renderPlayerWithEpisodeDialog();
 
   fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
   fireEvent.click(screen.getByRole("button", { name: "Đóng danh sách tập" }));
 
   expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Tua video")).toHaveFocus();
+  await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
 });
 
 test("keeps custom auto-next overlay on coarse pointer devices", () => {

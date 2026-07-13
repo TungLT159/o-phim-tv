@@ -86,6 +86,7 @@ export default function TvSearch() {
   const [gridCols, setGridCols] = useState(DEFAULT_COLS);
   const inputRef = useRef(null);
   const gridRef = useRef(null);
+  const typingFocusLockRef = useRef(false);
   const latestSearchRequestIdRef = useRef(0);
   const hasRestoredSessionRef = useRef(false);
   const { skipToZone, setFocusPosition } = useFocus();
@@ -104,6 +105,7 @@ export default function TvSearch() {
 
   const handleSearch = useCallback(async (val) => {
     const nextQuery = val;
+    typingFocusLockRef.current = document.activeElement === inputRef.current;
     setQuery(nextQuery);
     if (!nextQuery.trim()) {
       latestSearchRequestIdRef.current += 1;
@@ -145,6 +147,14 @@ export default function TvSearch() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!typingFocusLockRef.current) return undefined;
+    const timer = setTimeout(() => {
+      inputRef.current?.focus?.();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [query, results.length, loading]);
 
   const focusFirstResult = useCallback(() => {
     const firstCard = gridRef.current?.querySelector?.('.tv-search-card');
@@ -224,6 +234,7 @@ export default function TvSearch() {
     if (event.key !== 'ArrowDown' || results.length === 0) return;
 
     event.preventDefault();
+    typingFocusLockRef.current = false;
     skipToZone(1, 1, 0);
     focusFirstResult();
   }, [focusFirstResult, results.length, skipToZone]);

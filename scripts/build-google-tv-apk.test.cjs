@@ -3,18 +3,30 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const packageJson = require('../package.json');
 
 const {
   getBuildPlan,
+  getGradleCleanCommand,
   getGradleBuildCommand,
+  getRustCleanCommand,
+  getFrontendBuildDir,
+  getFrontendBuildCommand,
+  getFrontendBuildOutputPath,
+  validateFreshFrontendBuild,
+  cleanStaleAndroidBuildOutputs,
+  validateFreshArmLibrary,
+  validateFreshApk,
   getArmLibraryPaths,
   getApkPath,
   getTauriIconPaths,
   getAndroidLauncherIconPaths,
   getAndroidTvBannerPaths,
+  getAndroidTauriPropertiesPath,
   prepareTauriIcons,
   prepareAndroidLauncherIcons,
   prepareAndroidTvBanner,
+  ensureFreshAndroidVersion,
   ensureGoogleTvManifestCompatibility,
 } = require('./build-google-tv-apk.cjs');
 
@@ -33,12 +45,164 @@ test('plans the Tauri ARMv7 APK build for Bravia VH21 Google TV', () => {
   assert.equal(plan.needsSymlinkFallback, true);
 });
 
+test('routes the default Android APK build through the cache-safe Google TV builder', () => {
+  assert.equal(packageJson.scripts['tauri:android:build'], 'npm run tauri:android:build:google-tv');
+  assert.equal(packageJson.scripts['tauri:android:build:raw'], 'tauri android build');
+});
+
+test('plans a Gradle clean before generated Android resources are patched', () => {
+  assert.deepEqual(getGradleCleanCommand('C:/repo', 'win32'), {
+    command: 'C:/repo/src-tauri/gen/android/gradlew.bat',
+    args: ['clean'],
+    cwd: 'C:/repo/src-tauri/gen/android',
+  });
+});
+
 test('plans a Gradle reassemble after generated Android resources are patched', () => {
   assert.deepEqual(getGradleBuildCommand('C:/repo', 'win32'), {
     command: 'C:/repo/src-tauri/gen/android/gradlew.bat',
     args: ['assembleArmRelease'],
     cwd: 'C:/repo/src-tauri/gen/android',
   });
+});
+
+test('plans a Rust package clean so Tauri embeds the latest frontend build', () => {
+  assert.deepEqual(getRustCleanCommand('C:/repo'), {
+    command: 'cargo',
+    args: ['clean', '--target', 'armv7-linux-androideabi'],
+    cwd: 'C:/repo/src-tauri',
+  });
+});
+
+test('returns the React production build directory for cache cleanup', () => {
+  assert.equal(getFrontendBuildDir('C:/repo'), 'C:/repo/build');
+});
+
+test('plans a fresh React production build before Android packaging', () => {
+  assert.deepEqual(getFrontendBuildCommand('C:/repo'), {
+    command: 'npm',
+    args: ['run', 'build'],
+    cwd: 'C:/repo',
+  });
+});
+
+test('returns the React production build output path', () => {
+  assert.equal(getFrontendBuildOutputPath('C:/repo'), 'C:/repo/build/index.html');
+});
+
+test('throws a clear error when the React production build output is missing', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-missing-'));
+
+  assert.throws(
+    () => validateFreshFrontendBuild(rootDir),
+    /Missing React build output: .*build.*index\.html/,
+  );
+});
+
+test('throws a clear error when the React production build output is stale', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-stale-'));
+  const outputPath = path.join(rootDir, 'build', 'index.html');
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, '<html></html>');
+  const startedAt = Date.now();
+  const staleTime = new Date(startedAt - 3000);
+  fs.utimesSync(outputPath, staleTime, staleTime);
+
+  assert.throws(
+    () => validateFreshFrontendBuild(rootDir, startedAt),
+    /Stale React build output: .*build.*index\.html/,
+  );
+});
+
+test('returns the fresh React production build output path', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-build-fresh-'));
+  const outputPath = path.join(rootDir, 'build', 'index.html');
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, '<html></html>');
+  const startedAt = Date.now();
+
+  assert.equal(validateFreshFrontendBuild(rootDir, startedAt), outputPath.replace(/\\/g, '/'));
+});
+
+test('removes stale native library and APK outputs before Google TV packaging', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-android-output-'));
+  const armPaths = getArmLibraryPaths(rootDir);
+  const apkPath = getApkPath(rootDir);
+  [armPaths.source, armPaths.destination, apkPath].forEach((filePath) => {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'stale');
+  });
+
+  const removed = cleanStaleAndroidBuildOutputs(rootDir);
+
+  assert.deepEqual(removed, [armPaths.source, armPaths.destination, apkPath]);
+  assert.equal(fs.existsSync(armPaths.source), false);
+  assert.equal(fs.existsSync(armPaths.destination), false);
+  assert.equal(fs.existsSync(apkPath), false);
+});
+
+test('removes the stale React build directory before rebuilding frontend assets', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-react-build-dir-'));
+  const staleBuildFile = path.join(rootDir, 'build', 'static', 'js', 'old.js');
+  fs.mkdirSync(path.dirname(staleBuildFile), { recursive: true });
+  fs.writeFileSync(staleBuildFile, 'old frontend');
+
+  const removed = cleanStaleAndroidBuildOutputs(rootDir);
+
+  assert.ok(removed.includes(getFrontendBuildDir(rootDir)));
+  assert.equal(fs.existsSync(path.join(rootDir, 'build')), false);
+});
+
+test('throws when the ARM native library was not rebuilt freshly', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-arm-lib-'));
+  const armPaths = getArmLibraryPaths(rootDir);
+  [armPaths.source, armPaths.destination].forEach((filePath) => {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'old native lib');
+    const staleTime = new Date(Date.now() - 3000);
+    fs.utimesSync(filePath, staleTime, staleTime);
+  });
+
+  assert.throws(
+    () => validateFreshArmLibrary(rootDir, Date.now()),
+    /Stale ARM native library: .*libo_phim_lib\.so/,
+  );
+});
+
+test('returns fresh ARM native library paths after rebuild and copy', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-arm-lib-'));
+  const armPaths = getArmLibraryPaths(rootDir);
+  const startedAt = Date.now();
+  [armPaths.source, armPaths.destination].forEach((filePath) => {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, 'fresh native lib');
+  });
+
+  assert.deepEqual(validateFreshArmLibrary(rootDir, startedAt), armPaths);
+});
+
+test('throws when the final Google TV APK is stale', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-google-tv-apk-'));
+  const apkPath = getApkPath(rootDir);
+  fs.mkdirSync(path.dirname(apkPath), { recursive: true });
+  fs.writeFileSync(apkPath, 'old apk');
+  const staleTime = new Date(Date.now() - 3000);
+  fs.utimesSync(apkPath, staleTime, staleTime);
+
+  assert.throws(
+    () => validateFreshApk(rootDir, Date.now()),
+    /Stale Google TV APK: .*app-arm-release\.apk/,
+  );
+});
+
+test('returns the fresh Google TV APK path', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-google-tv-apk-'));
+  const apkPath = getApkPath(rootDir);
+  const startedAt = Date.now();
+  fs.mkdirSync(path.dirname(apkPath), { recursive: true });
+  fs.writeFileSync(apkPath, 'fresh apk');
+
+  assert.equal(validateFreshApk(rootDir, startedAt), apkPath);
 });
 
 test('returns the ARMv7 native library copy paths', () => {
@@ -160,6 +324,25 @@ test('returns Android TV home banner paths used by Leanback launcher', () => {
     'C:/repo/src-tauri/gen/android/app/src/main/res/drawable/banner.png',
     'C:/repo/src-tauri/gen/android/app/src/main/res/drawable-xhdpi/banner.png',
   ]);
+});
+
+test('returns generated Android freshness patch paths', () => {
+  assert.equal(
+    getAndroidTauriPropertiesPath('C:/repo'),
+    'C:/repo/src-tauri/gen/android/app/tauri.properties',
+  );
+});
+
+test('bumps Android versionCode so TV installs cannot reuse an old APK version', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'android-version-fresh-'));
+  const propertiesPath = getAndroidTauriPropertiesPath(rootDir);
+  fs.mkdirSync(path.dirname(propertiesPath), { recursive: true });
+  fs.writeFileSync(propertiesPath, 'tauri.android.versionName=0.4.5\ntauri.android.versionCode=4005\n');
+
+  const versionCode = ensureFreshAndroidVersion(rootDir, 1700000000123);
+
+  assert.equal(versionCode, 1700000000);
+  assert.match(fs.readFileSync(propertiesPath, 'utf8'), /tauri\.android\.versionCode=1700000000/);
 });
 
 test('copies public logo assets into the Tauri icons directory', () => {

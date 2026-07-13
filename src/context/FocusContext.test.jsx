@@ -157,6 +157,27 @@ test("does not steal focus from text input on active target re-render", async ()
   expect(input).toHaveFocus();
 });
 
+test("does not navigate back for Backspace or Escape from a focused text input", () => {
+  const historyBackSpy = jest.spyOn(window.history, "back").mockImplementation(() => {});
+
+  render(
+    <FocusProvider>
+      <input aria-label="Search" />
+    </FocusProvider>,
+  );
+
+  const input = screen.getByRole("textbox", { name: "Search" });
+  input.focus();
+
+  fireEvent.keyDown(document, { key: "Backspace" });
+  fireEvent.keyDown(document, { key: "Escape" });
+
+  expect(input).toHaveFocus();
+  expect(historyBackSpy).not.toHaveBeenCalled();
+
+  historyBackSpy.mockRestore();
+});
+
 test("does not steal focus from player controls on active target re-render", async () => {
   let updateActiveButton;
 

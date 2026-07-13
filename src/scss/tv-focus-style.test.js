@@ -18,6 +18,21 @@ describe('TV focus styling', () => {
     });
   });
 
+  test('does not use orange focus rings in TV player and global focus styles', () => {
+    const files = [
+      'scss/tv-focus.scss',
+      'components/video-player/custom-video-player.scss',
+      'components/video-player/episode-sidebar/episode-sidebar.scss',
+      'pages/detail/tv-detail.scss',
+      'pages/tv-search.scss',
+    ];
+
+    files.forEach((file) => {
+      const contents = read(file);
+      expect(contents).not.toMatch(/#ff6b35|255,\s*107,\s*53|orange/i);
+    });
+  });
+
   test('uses white rings for continue watching card focus states', () => {
     const contents = read('components/continue-watching-list/continue-watching-list.scss');
 

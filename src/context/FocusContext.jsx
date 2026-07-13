@@ -26,6 +26,11 @@ const shouldKeepDomFocus = (element) => Boolean(
   )
 );
 
+const isTextEditingElement = (element) => Boolean(
+  element &&
+  (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.isContentEditable)
+);
+
 function createInitialState() {
   return {
     zone: 1,
@@ -627,7 +632,13 @@ export function FocusProvider({ children }) {
       }
 
       const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-      
+      if (
+        !arrowKeys.includes(e.key) &&
+        (isTextEditingElement(e.target) || isTextEditingElement(document.activeElement))
+      ) {
+        return;
+      }
+       
       if (arrowKeys.includes(e.key)) {
         e.preventDefault();
         

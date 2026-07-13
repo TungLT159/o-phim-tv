@@ -72,12 +72,15 @@ npm run build
 # Build Tauri desktop application (produces installers)
 npm run tauri:build
 
-# Android
+# Android / Google TV
 npm run tauri:android:init    # Initialize Android project
 npm run tauri:android:dev     # Run on device/emulator
-npm run tauri:android:build   # Build APK
+npm run tauri:android:build   # Clean stale outputs, rebuild frontend/native code, build Google TV APK
 
-# Google TV (Android TV)
+# Raw Tauri Android build, only when debugging the generated Android project
+npm run tauri:android:build:raw
+
+# Explicit Google TV (Android TV) alias
 npm run tauri:android:build:google-tv
 ```
 
