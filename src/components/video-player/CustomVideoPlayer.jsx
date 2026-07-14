@@ -144,66 +144,10 @@ const isConcretePlayerFocusTarget = (player, element) => {
   );
 };
 
-const getCenter = (element) => {
-  if (!element) return null;
-
-  const rect = element.getBoundingClientRect?.();
-  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-  return {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  };
-};
-
-const moveFocusByPosition = (elements, direction) => {
+const moveSidebarFocus = (elements, direction) => {
   if (!elements.length) return;
 
   const currentIndex = elements.indexOf(document.activeElement);
-  const currentElement = currentIndex >= 0 ? elements[currentIndex] : null;
-  const currentCenter = getCenter(currentElement);
-
-  if (currentCenter) {
-    const candidates = elements
-      .filter((element) => element !== currentElement)
-      .map((element) => {
-        const center = getCenter(element);
-        if (!center) return null;
-        const currentRow = Number(currentElement?.dataset?.focusRow);
-        const targetRow = Number(element?.dataset?.focusRow);
-        return {
-          element,
-          sameFocusRow: Number.isFinite(currentRow) && currentRow === targetRow,
-          dx: center.x - currentCenter.x,
-          dy: center.y - currentCenter.y,
-        };
-      })
-      .filter(Boolean)
-      .filter(({ dx, dy }) => {
-        if (direction === "ArrowDown") return dy > 1;
-        if (direction === "ArrowUp") return dy < -1;
-        if (direction === "ArrowRight") return dx > 1;
-        if (direction === "ArrowLeft") return dx < -1;
-        return false;
-      })
-      .sort((a, b) => {
-        const aPrimary = direction === "ArrowDown" || direction === "ArrowUp" ? Math.abs(a.dy) : Math.abs(a.dx);
-        const bPrimary = direction === "ArrowDown" || direction === "ArrowUp" ? Math.abs(b.dy) : Math.abs(b.dx);
-        const aSecondary = direction === "ArrowDown" || direction === "ArrowUp" ? Math.abs(a.dx) : Math.abs(a.dy);
-        const bSecondary = direction === "ArrowDown" || direction === "ArrowUp" ? Math.abs(b.dx) : Math.abs(b.dy);
-        return aPrimary - bPrimary || aSecondary - bSecondary;
-      });
-
-    const candidate =
-      direction === "ArrowLeft" || direction === "ArrowRight"
-        ? candidates.find(({ sameFocusRow }) => sameFocusRow)
-        : candidates[0];
-
-    if (candidate) {
-      candidate.element.focus();
-      return;
-    }
-  }
-
   const nextIndex = currentIndex < 0
     ? 0
     : Math.min(Math.max(currentIndex + (direction === "ArrowUp" || direction === "ArrowLeft" ? -1 : 1), 0), elements.length - 1);
@@ -998,7 +942,7 @@ const CustomVideoPlayer = ({
           if (!sidebarContainsFocus) {
             focusFirstSidebarControl();
           } else {
-            moveFocusByPosition(items, event.key);
+            moveSidebarFocus(items, event.key);
           }
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();

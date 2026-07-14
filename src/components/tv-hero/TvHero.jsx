@@ -115,7 +115,7 @@ const TvHero = ({ items: providedItems = [] }) => {
     hasFocusedInitiallyRef.current = true;
     focusSelf?.();
     ref.current?.focus?.();
-  }, [focusSelf, items.length]);
+  }, [focusSelf, items.length, ref]);
 
   useEffect(() => {
     if (providedItems.length) return;

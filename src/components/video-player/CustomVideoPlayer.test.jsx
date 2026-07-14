@@ -2012,6 +2012,14 @@ test("remote arrows move focus inside the episode dialog", () => {
   expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(playerProps.episodes[1]);
 });
 
+test("episode dialog arrow handling does not use geometry-based focus movement", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const contents = fs.readFileSync(path.join(__dirname, "CustomVideoPlayer.jsx"), "utf8");
+
+  expect(contents).not.toMatch(/moveFocusByPosition/);
+});
+
 test("remote vertical arrows keep visible focus moving through episode dialog items", () => {
   renderPlayerWithEpisodeDialog({
     episodes: [

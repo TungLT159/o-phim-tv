@@ -266,6 +266,7 @@ export function FocusProvider({ children }) {
     saveFocus,
     setFocusPosition,
     setTrap,
+    isFirstRegisteredFocusable,
     skipToZone,
     state,
     syncFocusState,
@@ -296,7 +297,10 @@ export function useFocusable(configOrZone, row, col) {
   const focusKey = config.focusKey;
   const noriginResult = useNoriginFocusable(config) || {};
   const noriginRef = noriginResult.ref || fallbackRef;
-  const noriginFocusSelf = noriginResult.focusSelf || (() => setFocus(focusKey));
+  const noriginFocusSelf = useMemo(
+    () => noriginResult.focusSelf || (() => setFocus(focusKey)),
+    [focusKey, noriginResult.focusSelf],
+  );
   const norigin = {
     ref: noriginRef,
     focused: false,

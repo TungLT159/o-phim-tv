@@ -138,6 +138,14 @@ describe('TV focus styling', () => {
     expect(progressBlock).not.toMatch(/&:focus-visible\s*\{[^}]*rgba\(255,\s*61,\s*113,\s*0\.35\)/i);
   });
 
+  test('uses white focus accents for episode scroll item focus', () => {
+    const contents = read('scss/tv-focus.scss');
+    const episodeScrollFocusBlock = contents.match(/\.episode-scroll__item:focus-visible\s*\{[\s\S]*?\}/)?.[0] || '';
+
+    expect(episodeScrollFocusBlock).toMatch(/box-shadow:\s*0 0 0 4px rgba\(255,\s*255,\s*255,\s*0\.45\)/i);
+    expect(episodeScrollFocusBlock).not.toMatch(/rgba\(229,\s*9,\s*20|#e50914|#ff3d71/i);
+  });
+
   test('keeps the custom video element styling unchanged for TV layout stability', () => {
     const contents = read('components/video-player/custom-video-player.scss');
 
