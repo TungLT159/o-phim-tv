@@ -1,14 +1,60 @@
 import React from "react";
 import "@testing-library/jest-dom";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  destroy,
+  init,
+  setFocus,
+  useFocusable as useNoriginFocusable,
+} from "@noriginmedia/norigin-spatial-navigation";
 import { FocusProvider, useFocus, useFocusable } from "./FocusContext";
 
 jest.mock("../tauri-bridge", () => ({
   isTauri: () => true,
 }));
 
+jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
+  const React = require("react");
+  const registry = new Map();
+
+  const setFocus = jest.fn((focusKey) => {
+    registry.get(focusKey)?.focus?.();
+    return Promise.resolve();
+  });
+
+  return {
+    __esModule: true,
+    destroy: jest.fn(() => registry.clear()),
+    doesFocusableExist: jest.fn((focusKey) => registry.has(focusKey)),
+    getCurrentFocusKey: jest.fn(() => "TV_1_0_0"),
+    init: jest.fn(),
+    setFocus,
+    useFocusable: jest.fn(({ focusKey } = {}) => {
+      const ref = React.useRef(null);
+
+      React.useEffect(() => {
+        if (!focusKey || !ref.current) return undefined;
+        registry.set(focusKey, ref.current);
+        return () => registry.delete(focusKey);
+      });
+
+      return {
+        ref,
+        focused: false,
+        hasFocusedChild: false,
+        focusKey,
+        focusSelf: () => setFocus(focusKey),
+      };
+    }),
+  };
+});
+
 beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = jest.fn();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
 });
 
 function TvButton({ row, col, children, onClick = jest.fn() }) {
@@ -20,141 +66,82 @@ function TvButton({ row, col, children, onClick = jest.fn() }) {
   );
 }
 
-function PositionedTvButton({ zone = 1, row, col, rect, children }) {
-  const { ref } = useFocusable(zone, row, col);
-
-  React.useEffect(() => {
-    if (!ref.current) return;
-    ref.current.getBoundingClientRect = jest.fn(() => ({
-      left: rect.left,
-      top: rect.top,
-      right: rect.left + rect.width,
-      bottom: rect.top + rect.height,
-      width: rect.width,
-      height: rect.height,
-      x: rect.left,
-      y: rect.top,
-      toJSON: () => {},
-    }));
-  }, [rect, ref]);
-
-  return (
-    <button ref={ref} type="button">
-      {children}
-    </button>
-  );
-}
-
-test("initializes focus to the first registered TV item when the default row is absent", async () => {
+test("sets DOM focus on the first registered Norigin-compatible target", async () => {
   render(
     <FocusProvider>
-      <TvButton row={1} col={0}>Phát</TvButton>
-      <TvButton row={110} col={0}>Tập 1</TvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Phát" })).toHaveFocus());
-});
-
-test("focuses the default hero target when it registers after provider mount", async () => {
-  function DelayedHeroButton() {
-    const [ready, setReady] = React.useState(false);
-
-    React.useEffect(() => {
-      setReady(true);
-    }, []);
-
-    if (!ready) return null;
-
-    return <TvButton row={0} col={0}>Xem ngay</TvButton>;
-  }
-
-  render(
-    <FocusProvider>
-      <DelayedHeroButton />
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
     </FocusProvider>,
   );
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
 });
 
-test("focuses the late active target when another element already has DOM focus", async () => {
-  function DelayedHeroButton() {
-    const [ready, setReady] = React.useState(false);
-
-    React.useEffect(() => {
-      screen.getByRole("textbox", { name: "Search" }).focus();
-      setReady(true);
-    }, []);
-
-    if (!ready) return null;
-
-    return <TvButton row={0} col={0}>Xem ngay</TvButton>;
-  }
-
-  render(
+test("initializes Norigin once with DOM focus enabled", () => {
+  const { rerender } = render(
     <FocusProvider>
-      <input aria-label="Search" />
-      <DelayedHeroButton />
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
     </FocusProvider>,
   );
 
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+  rerender(
+    <FocusProvider>
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
+      <TvButton row={1} col={0}>Tiếp tục xem</TvButton>
+    </FocusProvider>,
+  );
+
+  expect(init).toHaveBeenCalledTimes(1);
+  expect(init).toHaveBeenCalledWith(expect.objectContaining({ shouldFocusDOMNode: true }));
 });
 
-test("focuses the active target when its DOM node appears after the hook mounts", async () => {
-  function LoadingThenButton() {
-    const { ref } = useFocusable(1, 0, 0);
-    const [ready, setReady] = React.useState(false);
-
-    React.useEffect(() => {
-      screen.getByRole("textbox", { name: "Search" }).focus();
-      setReady(true);
-    }, []);
-
-    if (!ready) return null;
-
-    return <button ref={ref} type="button">Xem ngay</button>;
-  }
-
+test("maps legacy grid coordinates to stable Norigin focus keys", () => {
   render(
     <FocusProvider>
-      <input aria-label="Search" />
-      <LoadingThenButton />
+      <TvButton row={2} col={3}>Phim</TvButton>
     </FocusProvider>,
   );
 
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+  expect(useNoriginFocusable).toHaveBeenCalledWith(expect.objectContaining({ focusKey: "TV_1_2_3" }));
 });
 
-test("does not steal focus from text input on active target re-render", async () => {
-  function ReRenderingActiveButton() {
-    const { ref } = useFocusable(1, 0, 0);
-    const [label, setLabel] = React.useState("Xem ngay");
-
-    React.useEffect(() => {
-      const timer = setTimeout(() => setLabel("Xem ngay cập nhật"), 0);
-      return () => clearTimeout(timer);
-    }, []);
-
-    return <button ref={ref} type="button">{label}</button>;
+test("legacy useFocusable returns its own coordinates", () => {
+  function CoordinateProbe() {
+    const { ref, zone, row, col } = useFocusable(1, 2, 3);
+    return <button ref={ref} type="button">{`${zone}-${row}-${col}`}</button>;
   }
 
   render(
     <FocusProvider>
-      <input aria-label="Search" />
-      <ReRenderingActiveButton />
+      <CoordinateProbe />
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
     </FocusProvider>,
   );
 
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
+  expect(screen.getByRole("button", { name: "1-2-3" })).toBeInTheDocument();
+});
 
-  const input = screen.getByRole("textbox", { name: "Search" });
-  input.focus();
+test("skipToZone does not sync state when target focusable is missing", () => {
+  function SkipProbe() {
+    const { state, skipToZone } = useFocus();
+    return (
+      <button type="button" onClick={() => skipToZone(9, 9, 9)}>
+        {`${state.zone}-${state.row}-${state.col}`}
+      </button>
+    );
+  }
 
-  await screen.findByRole("button", { name: "Xem ngay cập nhật" });
+  render(
+    <FocusProvider>
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
+      <SkipProbe />
+    </FocusProvider>,
+  );
 
-  expect(input).toHaveFocus();
+  setFocus.mockClear();
+  fireEvent.click(screen.getByRole("button", { name: "1-0-0" }));
+
+  expect(setFocus).not.toHaveBeenCalledWith("TV_9_9_9");
+  expect(screen.getByRole("button", { name: "1-0-0" })).toBeInTheDocument();
 });
 
 test("does not navigate back for Backspace or Escape from a focused text input", () => {
@@ -169,8 +156,8 @@ test("does not navigate back for Backspace or Escape from a focused text input",
   const input = screen.getByRole("textbox", { name: "Search" });
   input.focus();
 
-  fireEvent.keyDown(document, { key: "Backspace" });
-  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.keyDown(window, { key: "Backspace" });
+  fireEvent.keyDown(window, { key: "Escape" });
 
   expect(input).toHaveFocus();
   expect(historyBackSpy).not.toHaveBeenCalled();
@@ -178,343 +165,37 @@ test("does not navigate back for Backspace or Escape from a focused text input",
   historyBackSpy.mockRestore();
 });
 
-test("does not steal focus from player controls on active target re-render", async () => {
-  let updateActiveButton;
-
-  function ReRenderingActiveButton() {
-    const { ref } = useFocusable(1, 0, 0);
-    const [label, setLabel] = React.useState("Xem ngay");
-
-    React.useEffect(() => {
-      updateActiveButton = () => setLabel("Xem ngay cập nhật");
-      return () => {
-        updateActiveButton = undefined;
-      };
-    }, []);
-
-    return <button ref={ref} type="button">{label}</button>;
-  }
+test("does not navigate back for Backspace or Escape from player controls", () => {
+  const historyBackSpy = jest.spyOn(window.history, "back").mockImplementation(() => {});
 
   render(
     <FocusProvider>
-      <ReRenderingActiveButton />
       <div className="custom-video-player">
         <button type="button">Tua lùi 10 giây</button>
       </div>
     </FocusProvider>,
   );
 
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
-
   const playerControl = screen.getByRole("button", { name: "Tua lùi 10 giây" });
   playerControl.focus();
 
-  act(() => {
-    updateActiveButton();
-  });
-
-  await screen.findByRole("button", { name: "Xem ngay cập nhật" });
+  fireEvent.keyDown(window, { key: "Backspace" });
+  fireEvent.keyDown(window, { key: "Escape" });
 
   expect(playerControl).toHaveFocus();
+  expect(historyBackSpy).not.toHaveBeenCalled();
+
+  historyBackSpy.mockRestore();
 });
 
-test("refocuses a previously synced target when navigation returns to it from another row", async () => {
-  render(
+test("destroys Norigin between tests only in test mode", () => {
+  const { unmount } = render(
     <FocusProvider>
-      <input aria-label="Search" />
-      <PositionedTvButton row={0} col={0} rect={{ left: 500, top: 100, width: 120, height: 50 }}>
-        Xem ngay
-      </PositionedTvButton>
-      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
-        Phim 1
-      </PositionedTvButton>
+      <TvButton row={0} col={0}>Xem ngay</TvButton>
     </FocusProvider>,
   );
 
-  const heroButton = await screen.findByRole("button", { name: "Xem ngay" });
-  await waitFor(() => expect(heroButton).toHaveFocus());
+  unmount();
 
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
-
-  screen.getByRole("textbox", { name: "Search" }).focus();
-
-  fireEvent.keyDown(document, { key: "ArrowUp" });
-
-  await waitFor(() => expect(heroButton).toHaveFocus());
-});
-
-test("does not fall back to sidebar while the default hero target is still loading", async () => {
-  function PendingHeroTarget() {
-    useFocusable(1, 0, 0);
-    return null;
-  }
-
-  function FocusStateProbe() {
-    const { state } = useFocus();
-    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
-  }
-
-
-  render(
-    <FocusProvider>
-      <FocusStateProbe />
-      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 60, height: 52 }}>
-        Trang chủ
-      </PositionedTvButton>
-      <PendingHeroTarget />
-    </FocusProvider>,
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, 50));
-
-  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
-  expect(screen.getByRole("button", { name: "Trang chủ" })).not.toHaveFocus();
-});
-
-test("does not fall back to sidebar before the default hero target mounts", async () => {
-  function FocusStateProbe() {
-    const { state } = useFocus();
-    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
-  }
-
-  render(
-    <FocusProvider>
-      <FocusStateProbe />
-      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 60, height: 52 }}>
-        Trang chủ
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, 50));
-
-  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
-  expect(screen.getByRole("button", { name: "Trang chủ" })).not.toHaveFocus();
-});
-
-test("does not fall back to continue watching while the default hero target is still loading", async () => {
-  function PendingHeroTarget() {
-    useFocusable(1, 0, 0);
-    return null;
-  }
-
-  function FocusStateProbe() {
-    const { state } = useFocus();
-    return <div data-testid="focus-state">{`${state.zone}-${state.row}-${state.col}`}</div>;
-  }
-
-  render(
-    <FocusProvider>
-      <FocusStateProbe />
-      <PositionedTvButton row={1} col={0} rect={{ left: 240, top: 360, width: 160, height: 240 }}>
-        Tiếp tục xem
-      </PositionedTvButton>
-      <PendingHeroTarget />
-    </FocusProvider>,
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, 50));
-
-  expect(screen.getByTestId("focus-state")).toHaveTextContent("1-0-0");
-  expect(screen.getByRole("button", { name: "Tiếp tục xem" })).not.toHaveFocus();
-});
-
-test("moves from detail play button into episode rows and activates selected episode", async () => {
-  const selectEpisode = jest.fn();
-  render(
-    <FocusProvider>
-      <TvButton row={1} col={0}>Phát</TvButton>
-      <TvButton row={110} col={0} onClick={() => selectEpisode("1")}>Tập 1</TvButton>
-      <TvButton row={110} col={1} onClick={() => selectEpisode("2")}>Tập 2</TvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Phát" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: "Tập 1" })).toHaveFocus();
-
-  fireEvent.keyDown(document, { key: "ArrowRight" });
-  expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus();
-
-  fireEvent.keyDown(document, { key: "Enter" });
-  expect(selectEpisode).toHaveBeenCalledWith("2");
-});
-
-test("remote arrows follow the nearest real UI position instead of only row and column numbers", async () => {
-  render(
-    <FocusProvider>
-      <PositionedTvButton row={0} col={0} rect={{ left: 500, top: 100, width: 120, height: 50 }}>
-        Phát
-      </PositionedTvButton>
-      <PositionedTvButton row={10} col={0} rect={{ left: 80, top: 240, width: 100, height: 50 }}>
-        Tập 1
-      </PositionedTvButton>
-      <PositionedTvButton row={10} col={1} rect={{ left: 500, top: 240, width: 100, height: 50 }}>
-        Tập 2
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Phát" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-
-  expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus();
-});
-
-test("aligns the top hero row to the start when focus returns from lower rows", async () => {
-  render(
-    <FocusProvider>
-      <PositionedTvButton row={0} col={0} rect={{ left: 500, top: 100, width: 120, height: 50 }}>
-        Xem ngay
-      </PositionedTvButton>
-      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
-        Phim 1
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
-
-  window.HTMLElement.prototype.scrollIntoView.mockClear();
-  fireEvent.keyDown(document, { key: "ArrowUp" });
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
-  expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith(
-    expect.objectContaining({ block: "start" }),
-  );
-});
-
-test("scrolls the top-row section container to the start when focus returns from lower rows", async () => {
-  const rootScrollIntoView = jest.fn();
-  const buttonScrollIntoView = jest.fn();
-
-  function HeroButton() {
-    const { ref } = useFocusable(1, 0, 0);
-
-    return (
-      <section data-focus-scroll-root="true" ref={(node) => {
-        if (node) node.scrollIntoView = rootScrollIntoView;
-      }}>
-        <button ref={(node) => {
-          ref.current = node;
-          if (node) {
-            node.scrollIntoView = buttonScrollIntoView;
-            node.getBoundingClientRect = jest.fn(() => ({
-              left: 500,
-              top: 100,
-              right: 620,
-              bottom: 150,
-              width: 120,
-              height: 50,
-              x: 500,
-              y: 100,
-              toJSON: () => {},
-            }));
-          }
-        }} type="button">Xem ngay</button>
-      </section>
-    );
-  }
-
-  render(
-    <FocusProvider>
-      <HeroButton />
-      <PositionedTvButton row={2} col={0} rect={{ left: 500, top: 500, width: 120, height: 50 }}>
-        Phim 1
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: "Phim 1" })).toHaveFocus();
-
-  rootScrollIntoView.mockClear();
-  buttonScrollIntoView.mockClear();
-  fireEvent.keyDown(document, { key: "ArrowUp" });
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Xem ngay" })).toHaveFocus());
-  expect(rootScrollIntoView).toHaveBeenCalledWith(
-    expect.objectContaining({ block: "start" }),
-  );
-  expect(buttonScrollIntoView).not.toHaveBeenCalled();
-});
-
-test("horizontal navigation stays in the current UI row before considering lower rows", async () => {
-  render(
-    <FocusProvider>
-      <PositionedTvButton row={1} col={0} rect={{ left: 80, top: 100, width: 100, height: 50 }}>
-        Row 1 Item 1
-      </PositionedTvButton>
-      <PositionedTvButton row={1} col={1} rect={{ left: 900, top: 100, width: 100, height: 50 }}>
-        Row 1 Item 2
-      </PositionedTvButton>
-      <PositionedTvButton row={2} col={0} rect={{ left: 140, top: 240, width: 100, height: 50 }}>
-        Row 2 Item 1
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Row 1 Item 1" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowRight" });
-
-  expect(screen.getByRole("button", { name: "Row 1 Item 2" })).toHaveFocus();
-});
-
-test("horizontal navigation follows the visual row when logical grid rows are stale", async () => {
-  render(
-    <FocusProvider>
-      <PositionedTvButton row={1} col={0} rect={{ left: 80, top: 100, width: 100, height: 50 }}>
-        Visual Row Item 1
-      </PositionedTvButton>
-      <PositionedTvButton row={2} col={0} rect={{ left: 240, top: 100, width: 100, height: 50 }}>
-        Visual Row Item 2
-      </PositionedTvButton>
-      <PositionedTvButton row={1} col={1} rect={{ left: 80, top: 240, width: 100, height: 50 }}>
-        Lower Row Item
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Visual Row Item 1" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowRight" });
-
-  expect(screen.getByRole("button", { name: "Visual Row Item 2" })).toHaveFocus();
-});
-
-test("restores the last content row when returning from the sidebar", async () => {
-  render(
-    <FocusProvider>
-      <PositionedTvButton zone={0} row={0} col={0} rect={{ left: 0, top: 100, width: 64, height: 50 }}>
-        Sidebar Home
-      </PositionedTvButton>
-      <PositionedTvButton row={0} col={0} rect={{ left: 240, top: 100, width: 120, height: 50 }}>
-        Hero
-      </PositionedTvButton>
-      <PositionedTvButton row={5} col={0} rect={{ left: 240, top: 520, width: 120, height: 50 }}>
-        Saved Row Item
-      </PositionedTvButton>
-    </FocusProvider>,
-  );
-
-  await waitFor(() => expect(screen.getByRole("button", { name: "Hero" })).toHaveFocus());
-
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(screen.getByRole("button", { name: "Saved Row Item" })).toHaveFocus();
-
-  fireEvent.keyDown(document, { key: "ArrowLeft" });
-  expect(screen.getByRole("button", { name: "Sidebar Home" })).toHaveFocus();
-
-  fireEvent.keyDown(document, { key: "ArrowRight" });
-
-  expect(screen.getByRole("button", { name: "Saved Row Item" })).toHaveFocus();
+  expect(destroy).toHaveBeenCalledTimes(1);
 });

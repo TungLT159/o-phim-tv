@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Autoplay } from 'swiper/modules';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import tmdbApi, { movieType } from '../../api/tmdbApi';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 import axiosClient from '../../api/axiosClient';
-import { useFocusable } from '../../context/FocusContext';
+import { FOCUS_KEYS, useFocus, useFocusable } from '../../context/FocusContext';
 import './tv-hero.scss';
 
 const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
@@ -16,9 +16,10 @@ const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
 
   useEffect(() => {
     if (!item.slug) return;
-    axiosClient
-      .get(`https://ophim1.com/v1/api/phim/${item.slug}`)
-      .then((res) => setMovie(res.data))
+    Promise.resolve(axiosClient.get(`https://ophim1.com/v1/api/phim/${item.slug}`))
+      .then((res) => {
+        if (res?.data) setMovie(res.data);
+      })
       .catch(() => {});
   }, [item.slug]);
 
@@ -39,18 +40,10 @@ const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
     navigate(`/movie/${item.slug}`);
   }, [item.slug, navigate]);
 
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      navigate(`/movie/${item.slug}`);
-    }
-  }, [item.slug, navigate]);
-
   return (
     <div
       className="tv-hero__slide"
       style={{ backgroundImage: backdropUrl ? `url(${backdropUrl})` : 'none' }}
-      onKeyDown={handleKeyDown}
     >
       <div className="tv-hero__gradient-left" />
       <div className="tv-hero__gradient-bottom" />
@@ -87,9 +80,23 @@ const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
   );
 };
 
-const TvHero = () => {
-  const [items, setItems] = useState([]);
-  const { ref, focused } = useFocusable(1, 0, 0);
+const TvHero = ({ items: providedItems = [] }) => {
+  const [fetchedItems, setFetchedItems] = useState([]);
+  const items = providedItems.length ? providedItems : fetchedItems;
+  const hasFocusedInitiallyRef = useRef(false);
+  const { focusByKey } = useFocus();
+  const { ref, focused, focusSelf } = useFocusable({
+    focusKey: FOCUS_KEYS.HOME_HERO_PLAY,
+    onEnterPress: () => ref.current?.click?.(),
+    onArrowPress: (direction) => {
+      if (direction !== 'down') return true;
+      const firstContentCardFocusKey = document.querySelector(
+        '[data-home-content-card-focus-key]',
+      )?.getAttribute('data-home-content-card-focus-key');
+
+      return firstContentCardFocusKey ? !focusByKey(firstContentCardFocusKey) : true;
+    },
+  });
 
   const handlePlayButtonFocus = useCallback(() => {
     window.requestAnimationFrame?.(() => {
@@ -104,14 +111,23 @@ const TvHero = () => {
   }, [focused, handlePlayButtonFocus]);
 
   useEffect(() => {
+    if (!items.length || hasFocusedInitiallyRef.current) return;
+    hasFocusedInitiallyRef.current = true;
+    focusSelf?.();
+    ref.current?.focus?.();
+  }, [focusSelf, items.length]);
+
+  useEffect(() => {
+    if (providedItems.length) return;
+
     tmdbApi
       .getMoviesList(movieType.phimChieuRap, { page: 1 })
       .then((res) => {
         const movies = res.data?.items || [];
-        setItems(movies.slice(0, 8));
+        setFetchedItems(movies.slice(0, 8));
       })
       .catch(() => {});
-  }, []);
+  }, [providedItems.length]);
 
   if (!items.length) return null;
 

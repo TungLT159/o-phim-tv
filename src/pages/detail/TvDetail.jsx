@@ -9,7 +9,7 @@ import CustomVideoPlayer from '../../components/video-player/CustomVideoPlayer';
 import ContentRow from '../../components/content-row/ContentRow';
 import EpisodeListItem from '../../components/episode-list-item/EpisodeListItem';
 import EpisodeGroupAccordion from '../../components/episode-group-accordion/EpisodeGroupAccordion';
-import { useFocusable } from '../../context/FocusContext';
+import { FOCUS_KEYS, useFocus, useFocusable } from '../../context/FocusContext';
 import { formatEpisodeDisplayName } from '../../utils/episodeDisplayName';
 import { buildEpisodeDisplayGroups } from '../../utils/episodeChunkGroups';
 import {
@@ -40,11 +40,23 @@ const writeAutoPlayPreference = (enabled) => {
   }
 };
 
-function PlayButton({ label, onClick, onFocus }) {
-  const { ref, focused } = useFocusable(1, 0, 0);
+function PlayButton({ label, onClick, onFocus, shouldFocusSelf = false }) {
+  const hasFocusedSelfRef = useRef(false);
+  const { ref, focused, focusSelf } = useFocusable({
+    focusKey: FOCUS_KEYS.DETAIL_PLAY,
+    onEnterPress: onClick,
+  });
+
+  useEffect(() => {
+    if (!shouldFocusSelf || hasFocusedSelfRef.current) return;
+    hasFocusedSelfRef.current = true;
+    focusSelf?.();
+  }, [focusSelf, shouldFocusSelf]);
+
   return (
     <button
       ref={ref}
+      type="button"
       className={`tv-detail__play-btn ${focused ? 'tv-detail__play-btn--focused' : ''}`}
       onClick={onClick}
       onFocus={onFocus}
@@ -63,6 +75,7 @@ export default function TvDetail() {
   const [tmdbOverview, setTmdbOverview] = useState('');
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(readAutoPlayPreference);
   const [savedProgress, setSavedProgress] = useState(null);
+  const { focusByKey } = useFocus();
   const videoRef = useRef(null);
 
   const query = new URLSearchParams(location.search);
@@ -254,7 +267,10 @@ export default function TvDetail() {
     });
   }, []);
   
-  const handleClose = useCallback(() => setPlaying(false), []);
+  const handleClose = useCallback(() => {
+    setPlaying(false);
+    focusByKey(FOCUS_KEYS.DETAIL_PLAY);
+  }, [focusByKey]);
 
   useEffect(() => {
     if (!playing) return;
@@ -343,6 +359,7 @@ export default function TvDetail() {
             label={`${savedProgress ? 'Xem tiếp' : 'Phát'} ${currentEp ? formatEpisodeDisplayName(currentEp.name) : ''}`}
             onClick={handlePlay}
             onFocus={handlePlayButtonFocus}
+            shouldFocusSelf={Boolean(currentEp || episodeList.length)}
           />
         </div>
 

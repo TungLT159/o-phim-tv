@@ -23,6 +23,140 @@ jest.mock("../tauri-bridge", () => ({
   isTauri: () => true,
 }));
 
+jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
+  const React = require("react");
+  const registry = new Map();
+  const configs = new Map();
+  let currentFocusKey = null;
+
+  const moveFocus = (direction) => {
+    const registeredEntries = Array.from(registry.entries());
+    const domEntries = Array.from(globalThis.document?.querySelectorAll?.("[data-focus-key]") || [])
+      .map((element) => [element.dataset.focusKey, element]);
+    const entries = registeredEntries.length ? registeredEntries : domEntries;
+    if (!currentFocusKey) {
+      currentFocusKey = globalThis.document?.activeElement?.dataset?.focusKey ||
+        entries.find(([, element]) => element === globalThis.document?.activeElement)?.[0] || null;
+    }
+    if (!currentFocusKey) return;
+    const currentIndex = entries.findIndex(([focusKey]) => focusKey === currentFocusKey);
+    if (currentIndex < 0) return;
+
+    const searchResultMatch = /^SEARCH_RESULT_(\d+)$/.exec(currentFocusKey);
+    if (searchResultMatch && (direction === "left" || direction === "right")) {
+      const currentResultIndex = Number(searchResultMatch[1]);
+      const fallbackResultIndex = direction === "left" || direction === "up"
+        ? currentResultIndex - 1
+        : currentResultIndex + 1;
+      const fallbackResultKey = `SEARCH_RESULT_${fallbackResultIndex}`;
+      if (registry.has(fallbackResultKey) || globalThis.document?.querySelector?.(`[data-focus-key="${fallbackResultKey}"]`)) {
+        setFocus(fallbackResultKey);
+        return;
+      }
+    }
+
+    const currentElement = entries[currentIndex][1];
+    const currentRect = currentElement.getBoundingClientRect();
+    const positionedCandidates = entries
+      .filter(([focusKey]) => focusKey !== currentFocusKey)
+      .map(([focusKey, element]) => ({ focusKey, rect: element.getBoundingClientRect() }))
+      .filter(({ rect }) => {
+        if (direction === "right") return rect.left > currentRect.left;
+        if (direction === "left") return rect.left < currentRect.left;
+        if (direction === "down") return rect.top > currentRect.top;
+        if (direction === "up") return rect.top < currentRect.top;
+        return false;
+      })
+      .sort((a, b) => {
+        if (direction === "right" || direction === "left") {
+          return Math.abs(a.rect.left - currentRect.left) - Math.abs(b.rect.left - currentRect.left);
+        }
+        return Math.abs(a.rect.top - currentRect.top) - Math.abs(b.rect.top - currentRect.top) ||
+          Math.abs(a.rect.left - currentRect.left) - Math.abs(b.rect.left - currentRect.left);
+      });
+
+    const fallbackOffset = direction === "left" || direction === "up" ? -1 : 1;
+    const fallbackFocusKey = entries[currentIndex + fallbackOffset]?.[0];
+    setFocus(positionedCandidates[0]?.focusKey || fallbackFocusKey);
+  };
+
+  const handleKeyDown = (event) => {
+    const directions = {
+      ArrowDown: "down",
+      ArrowUp: "up",
+      ArrowLeft: "left",
+      ArrowRight: "right",
+    };
+    const direction = directions[event.key];
+    currentFocusKey = globalThis.document?.activeElement?.dataset?.focusKey || currentFocusKey;
+    if (!direction || !currentFocusKey) return;
+    const previousActiveElement = globalThis.document?.activeElement;
+    if (configs.get(currentFocusKey)?.onArrowPress?.(direction) === false) {
+      if (globalThis.document?.activeElement !== previousActiveElement) return;
+    }
+    moveFocus(direction);
+  };
+
+  const setFocus = jest.fn((focusKey) => {
+    if (!focusKey) return Promise.resolve();
+    const registeredElement = registry.get(focusKey);
+    const fallbackElement = globalThis.document?.querySelector?.(`[data-focus-key="${focusKey}"]`);
+    const element = registeredElement || fallbackElement;
+    if (!element) return Promise.resolve();
+    currentFocusKey = focusKey;
+    element.focus?.();
+    return Promise.resolve();
+  });
+
+  return {
+    __esModule: true,
+    destroy: jest.fn(() => {
+      registry.clear();
+      configs.clear();
+      currentFocusKey = null;
+      globalThis.window?.removeEventListener("keydown", handleKeyDown);
+      globalThis.document?.removeEventListener("keydown", handleKeyDown);
+    }),
+    doesFocusableExist: jest.fn((focusKey) => registry.has(focusKey)),
+    getCurrentFocusKey: jest.fn(() => currentFocusKey),
+    init: jest.fn(() => {
+      globalThis.window?.addEventListener("keydown", handleKeyDown);
+      globalThis.document?.addEventListener("keydown", handleKeyDown);
+    }),
+    setFocus,
+    useFocusable: jest.fn((config = {}) => {
+      const ref = React.useRef(null);
+      const { focusKey } = config;
+
+      React.useLayoutEffect(() => {
+        if (!focusKey || !ref.current) return undefined;
+        const element = ref.current;
+        const handleFocus = () => {
+          currentFocusKey = focusKey;
+        };
+
+        registry.set(focusKey, element);
+        configs.set(focusKey, config);
+        element.addEventListener("focus", handleFocus);
+
+        return () => {
+          element.removeEventListener("focus", handleFocus);
+          registry.delete(focusKey);
+          configs.delete(focusKey);
+        };
+      });
+
+      return {
+        ref,
+        focused: currentFocusKey === focusKey,
+        hasFocusedChild: false,
+        focusKey,
+        focusSelf: () => setFocus(focusKey),
+      };
+    }),
+  };
+});
+
 const originalScrollYDescriptor = Object.getOwnPropertyDescriptor(window, "scrollY");
 
 beforeAll(() => {
@@ -206,6 +340,18 @@ test("keeps search state empty when clearing before a pending request resolves",
   expect(input).toHaveValue("");
   expect(screen.queryByText("Đang tìm...")).not.toBeInTheDocument();
   expect(getTvSearchSession()).toEqual({ query: "", results: [], searched: false, lastFocusedSlug: "", scrollY: 0 });
+});
+
+test("keeps focus in the search input while typing and results update", async () => {
+  tmdbApi.search.mockResolvedValue({ data: { items: makeResults(1) } });
+
+  render(<MemoryRouter><FocusProvider><TvSearch /></FocusProvider></MemoryRouter>);
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "batman" } });
+
+  await waitFor(() => expect(input).toHaveFocus());
 });
 
 test("keeps focus in the search input while typing and rendering results", async () => {
@@ -413,6 +559,42 @@ test("keeps focus in the search input after returning from the first result row"
   expect(input).toHaveFocus();
 
   fireEvent.keyDown(input, { key: "ArrowUp" });
+  expect(input).toHaveFocus();
+});
+
+test("keeps input focus after returning from results while posters update", async () => {
+  const { fetchTMDBImages } = require("../utils/tmdbImageFetcher");
+  const posterRequest = createDeferredSearch();
+  fetchTMDBImages.mockReturnValue(posterRequest.promise);
+  tmdbApi.search.mockResolvedValue({
+    data: { items: [{ slug: "movie-1", name: "Movie 1", tmdb: { id: 1 } }] },
+  });
+
+  render(
+    <MemoryRouter>
+      <FocusProvider>
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+
+  await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  expect(firstCard).toHaveFocus();
+
+  fireEvent.keyDown(firstCard, { key: "ArrowUp" });
+  expect(input).toHaveFocus();
+
+  await act(async () => {
+    posterRequest.resolve({ posterUrl: "/updated-poster.jpg" });
+    await Promise.resolve();
+  });
+
   expect(input).toHaveFocus();
 });
 

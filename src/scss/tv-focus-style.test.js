@@ -130,6 +130,14 @@ describe('TV focus styling', () => {
     expect(sidebar).toMatch(/&::-webkit-scrollbar\s*\{[\s\S]*display:\s*none/i);
   });
 
+  test('uses white focus accents for player timeline focus', () => {
+    const contents = read('components/video-player/custom-video-player.scss');
+    const progressBlock = contents.match(/\.custom-video-player__progress\s*\{[\s\S]*?^\}/m)?.[0] || '';
+
+    expect(progressBlock).toMatch(/&:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 4px rgba\(255,\s*255,\s*255,\s*0\.45\)/i);
+    expect(progressBlock).not.toMatch(/&:focus-visible\s*\{[^}]*rgba\(255,\s*61,\s*113,\s*0\.35\)/i);
+  });
+
   test('keeps the custom video element styling unchanged for TV layout stability', () => {
     const contents = read('components/video-player/custom-video-player.scss');
 

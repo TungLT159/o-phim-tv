@@ -3,6 +3,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TvDetail from "./TvDetail";
+import { FocusProvider } from "../../context/FocusContext";
 import tmdbApi from "../../api/tmdbApi";
 import { fetchTMDBImages } from "../../utils/tmdbImageFetcher";
 import {
@@ -42,6 +43,50 @@ jest.mock("../../utils/tmdbImageFetcher", () => ({
   ),
 }));
 
+jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
+  const React = require("react");
+  const registry = new Map();
+  let currentFocusKey = null;
+
+  const setFocus = (focusKey) => {
+    currentFocusKey = focusKey;
+    registry.get(focusKey)?.focus?.();
+  };
+
+  return {
+    __esModule: true,
+    destroy: () => {
+      registry.clear();
+      currentFocusKey = null;
+    },
+    doesFocusableExist: (focusKey) => registry.has(focusKey),
+    getCurrentFocusKey: jest.fn(() => currentFocusKey),
+    init: jest.fn(),
+    setFocus,
+    useFocusable: ({ focusKey } = {}) => {
+      const ref = React.useMemo(() => {
+        const callbackRef = (node) => {
+          callbackRef.current = node;
+          if (node && focusKey) registry.set(focusKey, node);
+        };
+        callbackRef.current = null;
+        return callbackRef;
+      }, [focusKey]);
+
+      React.useEffect(() => () => {
+        registry.delete(focusKey);
+      }, [focusKey]);
+
+      return {
+        ref,
+        focused: currentFocusKey === focusKey,
+        hasFocusedChild: false,
+        focusSelf: () => setFocus(focusKey),
+      };
+    },
+  };
+});
+
 jest.mock("../../components/video-player/CustomVideoPlayer", () => ({
   __esModule: true,
   default: (props) => mockCustomVideoPlayer(props),
@@ -57,9 +102,11 @@ const renderTvDetail = (initialEntry = "/movie/test-movie?ep=0:tap-2") =>
       initialEntries={[initialEntry]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
-      <Routes>
-        <Route path="/movie/:id" element={<TvDetail />} />
-      </Routes>
+      <FocusProvider>
+        <Routes>
+          <Route path="/movie/:id" element={<TvDetail />} />
+        </Routes>
+      </FocusProvider>
     </MemoryRouter>,
   );
 
@@ -94,9 +141,24 @@ const mockPlayerWithAutoplayToggle = () => {
 beforeEach(async () => {
   await clearWatchHistory();
   mockCustomVideoPlayer.mockClear();
-  mockCustomVideoPlayer.mockImplementation(({ videoRef }) => (
-    <video ref={videoRef} data-testid="video-player" />
-  ));
+  mockCustomVideoPlayer.mockImplementation(({ videoRef, onClose }) => {
+    React.useEffect(() => {
+      const handleKeyDown = (event) => {
+        if (event.key === "Backspace" || event.key === "Escape") {
+          onClose?.();
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [onClose]);
+
+    return (
+      <div className="custom-video-player">
+        <video ref={videoRef} data-testid="video-player" />
+      </div>
+    );
+  });
   localStorage.clear();
   tmdbApi.detail.mockResolvedValue({ data: { item: movieDetail } });
   tmdbApi.similar.mockResolvedValue({ data: { items: [] } });
@@ -227,6 +289,18 @@ test("marks the TV detail page as the scroll root for returning to the play butt
     "data-focus-scroll-root",
     "true",
   );
+});
+
+test("returns focus to the detail play button after closing player", async () => {
+  renderTvDetail();
+
+  const playButton = await screen.findByRole("button", { name: /Phát|Xem tiếp/i });
+  await waitFor(() => expect(playButton).toHaveFocus());
+
+  fireEvent.click(playButton);
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  await waitFor(() => expect(playButton).toHaveFocus());
 });
 
 test("uses the TMDB backdrop on TV detail when available", async () => {

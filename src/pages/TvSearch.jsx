@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import tmdbApi from '../api/tmdbApi';
-import { useFocus, useFocusable } from '../context/FocusContext';
+import { FOCUS_KEYS, focusKeyForSearchResult, useFocus, useFocusable } from '../context/FocusContext';
 import { fetchTMDBImages } from '../utils/tmdbImageFetcher';
 import {
   clearTvSearchSession,
@@ -13,8 +13,33 @@ import './tv-search.scss';
 const DEFAULT_COLS = 5;
 const FALLBACK = '/poster-mau.png';
 
-function FocusCard({ item, row, col, onFirstRowArrowUp, onRememberResult }) {
-  const { ref, focused } = useFocusable(1, row, col);
+function FocusCard({ item, row, index, gridCols, resultCount, onFirstRowArrowUp, onMoveResult, onRememberResult }) {
+  const moveByDirection = useCallback((direction) => {
+    if (direction === 'up' && row === 1) {
+      onFirstRowArrowUp?.();
+      return false;
+    }
+
+    const targetIndexByDirection = {
+      left: index - 1,
+      right: index + 1,
+      up: index - gridCols,
+      down: index + gridCols,
+    };
+    const targetIndex = targetIndexByDirection[direction];
+
+    if (targetIndex >= 0 && targetIndex < resultCount) {
+      onMoveResult?.(targetIndex);
+    }
+
+    return false;
+  }, [gridCols, index, onFirstRowArrowUp, onMoveResult, resultCount, row]);
+
+  const { ref, focused } = useFocusable({
+    focusKey: focusKeyForSearchResult(index),
+    onEnterPress: () => ref.current?.click?.(),
+    onArrowPress: moveByDirection,
+  });
   const [poster, setPoster] = useState(FALLBACK);
   const [hasDomFocus, setHasDomFocus] = useState(false);
 
@@ -23,11 +48,19 @@ function FocusCard({ item, row, col, onFirstRowArrowUp, onRememberResult }) {
   }, [item?.slug, onRememberResult]);
 
   const handleKeyDown = useCallback((event) => {
-    if (event.key !== 'ArrowUp' || row !== 1) return;
+    const directionByKey = {
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+    };
+    const direction = directionByKey[event.key];
+    if (!direction) return;
+
     event.preventDefault();
     event.stopPropagation();
-    onFirstRowArrowUp?.();
-  }, [onFirstRowArrowUp, row]);
+    moveByDirection(direction);
+  }, [moveByDirection]);
 
   useEffect(() => {
     let active = true;
@@ -53,12 +86,17 @@ function FocusCard({ item, row, col, onFirstRowArrowUp, onRememberResult }) {
       to={`/movie/${item.slug}`}
       ref={ref}
       className={`tv-search-card ${focused && hasDomFocus ? 'tv-search-card--focused' : ''}`}
+      data-focus-key={focusKeyForSearchResult(index)}
       data-search-result-slug={item.slug || ''}
+      data-search-result-index={index}
       onClick={rememberResult}
       onKeyDown={handleKeyDown}
       onFocus={() => {
         setHasDomFocus(true);
         rememberResult();
+        if (row > 1) {
+          ref.current?.scrollIntoView?.({ block: 'center', inline: 'nearest' });
+        }
       }}
       onBlur={() => setHasDomFocus(false)}
     >
@@ -89,12 +127,23 @@ export default function TvSearch() {
   const typingFocusLockRef = useRef(false);
   const latestSearchRequestIdRef = useRef(0);
   const hasRestoredSessionRef = useRef(false);
-  const { skipToZone, setFocusPosition } = useFocus();
+  const { focusByKey } = useFocus();
+  const { ref: searchInputFocusableRef } = useFocusable({
+    focusKey: FOCUS_KEYS.SEARCH_INPUT,
+  });
+
+  const setSearchInputRef = useCallback((node) => {
+    inputRef.current = node;
+    searchInputFocusableRef.current = node;
+  }, [searchInputFocusableRef]);
 
   useEffect(() => {
     const shouldAutoFocusInput = !initialSession.lastFocusedSlug && !initialSession.scrollY;
     const focusTimer = shouldAutoFocusInput
-      ? setTimeout(() => inputRef.current?.focus(), 400)
+      ? setTimeout(() => {
+        if (document.activeElement && document.activeElement !== document.body) return;
+        inputRef.current?.focus();
+      }, 400)
       : null;
 
     return () => {
@@ -151,23 +200,72 @@ export default function TvSearch() {
   useEffect(() => {
     if (!typingFocusLockRef.current) return undefined;
     const timer = setTimeout(() => {
+      if (!typingFocusLockRef.current) return;
       inputRef.current?.focus?.();
     }, 0);
     return () => clearTimeout(timer);
   }, [query, results.length, loading]);
 
+  const focusResultByIndex = useCallback((index) => {
+    if (index < 0 || index >= results.length) return;
+    typingFocusLockRef.current = false;
+    const card = gridRef.current?.querySelector?.(`[data-search-result-index="${index}"]`);
+    focusByKey?.(focusKeyForSearchResult(index));
+    card?.focus?.();
+  }, [focusByKey, results.length]);
+
   const focusFirstResult = useCallback(() => {
-    const firstCard = gridRef.current?.querySelector?.('.tv-search-card');
-    firstCard?.focus?.();
-  }, []);
+    focusResultByIndex(0);
+  }, [focusResultByIndex]);
 
   const focusSearchInput = useCallback(() => {
+    focusByKey?.(FOCUS_KEYS.SEARCH_INPUT);
     inputRef.current?.focus?.();
-  }, []);
+  }, [focusByKey]);
+
+  useEffect(() => {
+    const handleResultArrowNavigation = (event) => {
+      const directionByKey = {
+        ArrowUp: 'up',
+        ArrowDown: 'down',
+        ArrowLeft: 'left',
+        ArrowRight: 'right',
+      };
+      const direction = directionByKey[event.key];
+      if (!direction) return;
+
+      const activeCard = document.activeElement?.closest?.('.tv-search-card');
+      if (!activeCard || !gridRef.current?.contains(activeCard)) return;
+
+      const index = Number(activeCard.dataset.searchResultIndex);
+      if (!Number.isFinite(index)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const row = 1 + Math.floor(index / gridCols);
+      if (direction === 'up' && row === 1) {
+        focusSearchInput();
+        return;
+      }
+
+      const targetIndexByDirection = {
+        left: index - 1,
+        right: index + 1,
+        up: index - gridCols,
+        down: index + gridCols,
+      };
+      focusResultByIndex(targetIndexByDirection[direction]);
+    };
+
+    document.addEventListener('keydown', handleResultArrowNavigation, true);
+    return () => document.removeEventListener('keydown', handleResultArrowNavigation, true);
+  }, [focusResultByIndex, focusSearchInput, gridCols]);
 
   const handleSearchInputFocus = useCallback(() => {
-    setFocusPosition(1, 0, 0);
-  }, [setFocusPosition]);
+    typingFocusLockRef.current = true;
+    focusByKey?.(FOCUS_KEYS.SEARCH_INPUT);
+  }, [focusByKey]);
 
   const rememberResult = useCallback((slug) => {
     saveTvSearchSession({ lastFocusedSlug: slug, scrollY: window.scrollY || 0 });
@@ -235,16 +333,15 @@ export default function TvSearch() {
 
     event.preventDefault();
     typingFocusLockRef.current = false;
-    skipToZone(1, 1, 0);
     focusFirstResult();
-  }, [focusFirstResult, results.length, skipToZone]);
+  }, [focusFirstResult, results.length]);
 
   return (
     <div className="tv-search">
       <div className="tv-search__bar">
         <i className="bx bx-search tv-search__bar-icon" />
         <input
-          ref={inputRef}
+          ref={setSearchInputRef}
           type="text"
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
@@ -252,6 +349,7 @@ export default function TvSearch() {
           onFocus={handleSearchInputFocus}
           placeholder="Nhập tên phim..."
           className="tv-search__input"
+          data-focus-key={FOCUS_KEYS.SEARCH_INPUT}
         />
         {query && (
           <button type="button" className="tv-search__clear" onClick={() => handleSearch('')}>
@@ -271,18 +369,20 @@ export default function TvSearch() {
       {results.length > 0 && (
         <>
           <h2 className="tv-search__count">{results.length} kết quả</h2>
-          <div className="tv-search-grid" ref={gridRef}>
+          <div className="tv-search-grid" ref={gridRef} data-focus-key={FOCUS_KEYS.SEARCH_RESULTS}>
             {results.map((item, idx) => {
               const row = 1 + Math.floor(idx / gridCols);
-              const col = idx % gridCols;
 
               return (
                 <FocusCard
                   key={item.slug || idx}
                   item={item}
                   row={row}
-                  col={col}
+                  index={idx}
+                  gridCols={gridCols}
+                  resultCount={results.length}
                   onFirstRowArrowUp={focusSearchInput}
+                  onMoveResult={focusResultByIndex}
                   onRememberResult={rememberResult}
                 />
               );

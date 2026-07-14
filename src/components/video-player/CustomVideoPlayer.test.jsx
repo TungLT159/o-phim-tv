@@ -49,6 +49,47 @@ jest.mock("../../utils/episodeLinkManager", () => ({
   getEpisodeLink: jest.fn(),
 }));
 
+jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
+  const React = require("react");
+  const registry = new Map();
+  let currentFocusKey = null;
+
+  const setFocus = jest.fn((focusKey) => {
+    currentFocusKey = focusKey;
+    registry.get(focusKey)?.focus?.();
+    return Promise.resolve();
+  });
+
+  return {
+    __esModule: true,
+    destroy: jest.fn(() => {
+      registry.clear();
+      currentFocusKey = null;
+    }),
+    doesFocusableExist: jest.fn((focusKey) => registry.has(focusKey)),
+    getCurrentFocusKey: jest.fn(() => currentFocusKey),
+    init: jest.fn(),
+    setFocus,
+    useFocusable: jest.fn(({ focusKey } = {}) => {
+      const ref = React.useRef(null);
+
+      React.useEffect(() => {
+        if (!focusKey || !ref.current) return undefined;
+        registry.set(focusKey, ref.current);
+        return () => registry.delete(focusKey);
+      });
+
+      return {
+        ref,
+        focused: currentFocusKey === focusKey,
+        hasFocusedChild: false,
+        focusKey,
+        focusSelf: () => setFocus(focusKey),
+      };
+    }),
+  };
+});
+
 const originalMatchMedia = window.matchMedia;
 const originalUserAgent = window.navigator.userAgent;
 const originalMaxTouchPoints = window.navigator.maxTouchPoints;
@@ -508,6 +549,26 @@ test("remote Backspace closes the custom player", () => {
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test("remote Backspace closes mounted player without global back when focus is outside", () => {
+  const onClose = jest.fn();
+  const historyBackSpy = jest.spyOn(window.history, "back").mockImplementation(() => {});
+  renderWithFocusProvider(
+    <CustomVideoPlayer
+      videoRef={React.createRef()}
+      title="Test Movie"
+      episodeName="1"
+      onClose={onClose}
+    />,
+  );
+
+  document.body.focus();
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  expect(historyBackSpy).not.toHaveBeenCalled();
+  expect(onClose).toHaveBeenCalledTimes(1);
+  historyBackSpy.mockRestore();
+});
+
 test("renders an autoplay toggle in custom controls", () => {
   const onToggleAutoPlay = jest.fn();
   renderPlayerWithEpisodeControls({
@@ -537,6 +598,7 @@ test("opens an episode dialog and selects an episode", () => {
   expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(
     playerProps.episodes[1],
   );
+  expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
 });
 
 test("remote Escape closes only the episode dialog while player remains open", async () => {
@@ -553,23 +615,78 @@ test("remote Escape closes only the episode dialog while player remains open", a
   await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
 });
 
-test("episode dialog starts on episode 1 and cycles up to close then back down", () => {
+test("episode dialog focuses the currently playing episode when opened", async () => {
   renderPlayerWithEpisodeDialog({
     currentEpisode: { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
 
-  const closeButton = screen.getByRole("button", { name: "Đóng danh sách tập" });
-  const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus());
+});
 
-  expect(episodeOne).toHaveFocus();
+test("episode dialog current focus is scoped to the mounted player sidebar", () => {
+  const externalCurrentEpisode = document.createElement("button");
+  externalCurrentEpisode.className = "episode-sidebar__item episode-sidebar__item--current";
+  externalCurrentEpisode.textContent = "External episode";
+  document.body.appendChild(externalCurrentEpisode);
 
-  fireEvent.keyDown(window, { key: "ArrowUp" });
-  expect(closeButton).toHaveFocus();
+  try {
+    renderPlayerWithEpisodeDialog({
+      currentEpisode: { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+    });
 
-  fireEvent.keyDown(document, { key: "ArrowDown" });
-  expect(episodeOne).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+    expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus();
+    expect(externalCurrentEpisode).not.toHaveFocus();
+  } finally {
+    externalCurrentEpisode.remove();
+  }
+});
+
+test("grouped duplicate episode names receive unique sidebar focus keys", () => {
+  renderPlayerWithEpisodeDialog({
+    episodeGroups: [
+      {
+        title: "Server 1",
+        episodes: [
+          { name: "1", slug: "tap-1" },
+          { name: "1", slug: "tap-1" },
+        ],
+      },
+      {
+        title: "Server 2",
+        episodes: [{ name: "2", slug: "tap-2" }],
+      },
+    ],
+    currentEpisode: { name: "1", slug: "tap-1" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+  const duplicateEpisodes = screen.getAllByRole("button", { name: "Tập 1" });
+  const focusKeys = duplicateEpisodes.map((button) => button.dataset.focusKey);
+
+  expect(new Set(focusKeys)).toHaveProperty("size", duplicateEpisodes.length);
+});
+
+test("remote Backspace closes episode dialog first and exits player on the next Backspace", async () => {
+  const onClose = jest.fn();
+  renderPlayerWithEpisodeDialog({ onClose });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Danh sách tập" })).toBeInTheDocument());
+
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  expect(screen.queryByRole("dialog", { name: "Danh sách tập" })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByLabelText("Tua video")).toHaveFocus());
+
+  fireEvent.keyDown(window, { key: "Backspace" });
+
+  expect(onClose).toHaveBeenCalledTimes(1);
 });
 
 test("episode dialog keeps remote focus inside the popup", () => {

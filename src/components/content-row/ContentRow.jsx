@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './content-row.scss';
-import { useFocusable } from '../../context/FocusContext';
+import { focusKeyForHomeCard, useFocus, useFocusable } from '../../context/FocusContext';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 
 const FALLBACK = '/poster-mau.png';
@@ -21,6 +21,7 @@ function ContentCardContent({
   getFallbackPoster = getDefaultFallbackPoster,
   cardRef,
   focused = false,
+  focusKey,
 }) {
   const fallbackPoster = getFallbackPoster(item) || FALLBACK;
   const badge = getItemBadge(item);
@@ -60,6 +61,7 @@ function ContentCardContent({
       to={getItemUrl(item)}
       className={`content-row__card ${focused ? 'content-row__card--focused' : ''}`}
       ref={cardRef}
+      data-home-content-card-focus-key={focusKey}
     >
       <div className="content-row__poster">
         <img src={poster} alt={item.name || item.title || ''} loading="lazy" />
@@ -73,10 +75,16 @@ function ContentCardContent({
   );
 }
 
-function FocusableContentCard({ row, col, zone = 1, ...props }) {
-  const { ref, focused } = useFocusable(zone, row, col);
+function FocusableContentCard({ row, rowId, col, zone = 1, ...props }) {
+  const focusKey = focusKeyForHomeCard(rowId || row, col);
+  const { rememberContentFocus } = useFocus();
+  const { ref, focused } = useFocusable({
+    focusKey,
+    onFocus: () => rememberContentFocus?.(focusKey),
+    onEnterPress: () => ref.current?.click?.(),
+  });
 
-  return <ContentCardContent {...props} cardRef={ref} focused={focused} />;
+  return <ContentCardContent {...props} cardRef={ref} focused={focused} focusKey={focusKey} />;
 }
 
 function PlainContentCard(props) {
@@ -112,6 +120,7 @@ const ContentRow = ({
             <CardComponent
               key={item.key || item.slug || idx}
               item={item}
+              rowId={rowId}
               row={row}
               col={idx}
               getItemUrl={getItemUrl}

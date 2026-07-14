@@ -614,21 +614,40 @@ const CustomVideoPlayer = ({
     [togglePlay],
   );
 
-  const restoreFocusAfterSidebarClose = useCallback(() => {
-    requestAnimationFrame(() => {
-      const root = playerRef.current;
-      focusElement(root, ".custom-video-player__progress") ||
-        focusElement(root, ".custom-video-player__control-btn--play") ||
-        focusElement(root, ".custom-video-player__center-play") ||
-        focusElement(root, ".custom-video-player__close-btn");
-    });
+  const focusTimeline = useCallback(() => {
+    return focusElement(playerRef.current, ".custom-video-player__progress");
   }, []);
+
+  const focusDefaultPlayerTarget = useCallback(() => {
+    const root = playerRef.current;
+    if (!root) return false;
+
+    if (isConcretePlayerFocusTarget(root, document.activeElement)) {
+      return true;
+    }
+
+    if (focusTimeline()) return true;
+
+    const centerPlayBtn = root.querySelector(".custom-video-player__center-play");
+    if (isVisibleFocusable(centerPlayBtn)) {
+      centerPlayBtn.focus();
+      return true;
+    }
+
+    const playBtn = root.querySelector(".custom-video-player__control-btn--play");
+    if (isVisibleFocusable(playBtn)) {
+      playBtn.focus();
+      return true;
+    }
+
+    return false;
+  }, [focusTimeline]);
 
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
     revealControls();
-    restoreFocusAfterSidebarClose();
-  }, [restoreFocusAfterSidebarClose, revealControls]);
+    setTimeout(() => focusDefaultPlayerTarget(), 0);
+  }, [focusDefaultPlayerTarget, revealControls]);
 
   const handleEpisodeSelect = useCallback(
     (selectedEpisode) => {
@@ -667,35 +686,6 @@ const CustomVideoPlayer = ({
     target.focus();
     return true;
   }, []);
-
-  const focusTimeline = useCallback(() => {
-    return focusElement(playerRef.current, ".custom-video-player__progress");
-  }, []);
-
-  const focusDefaultPlayerTarget = useCallback(() => {
-    const root = playerRef.current;
-    if (!root) return false;
-
-    if (isConcretePlayerFocusTarget(root, document.activeElement)) {
-      return true;
-    }
-
-    if (focusTimeline()) return true;
-
-    const centerPlayBtn = root.querySelector(".custom-video-player__center-play");
-    if (isVisibleFocusable(centerPlayBtn)) {
-      centerPlayBtn.focus();
-      return true;
-    }
-
-    const playBtn = root.querySelector(".custom-video-player__control-btn--play");
-    if (isVisibleFocusable(playBtn)) {
-      playBtn.focus();
-      return true;
-    }
-
-    return false;
-  }, [focusTimeline]);
 
   const focusAutoplayCardButton = useCallback((direction) => {
     const root = playerRef.current;
@@ -1131,6 +1121,9 @@ const CustomVideoPlayer = ({
         case "Backspace":
         case "Escape":
           event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent?.stopImmediatePropagation?.();
+          event.stopImmediatePropagation?.();
           if (sidebarOpen) {
             closeSidebar();
           } else {
