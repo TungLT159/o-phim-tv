@@ -223,45 +223,6 @@ export default function TvSearch() {
     inputRef.current?.focus?.();
   }, [focusByKey]);
 
-  useEffect(() => {
-    const handleResultArrowNavigation = (event) => {
-      const directionByKey = {
-        ArrowUp: 'up',
-        ArrowDown: 'down',
-        ArrowLeft: 'left',
-        ArrowRight: 'right',
-      };
-      const direction = directionByKey[event.key];
-      if (!direction) return;
-
-      const activeCard = document.activeElement?.closest?.('.tv-search-card');
-      if (!activeCard || !gridRef.current?.contains(activeCard)) return;
-
-      const index = Number(activeCard.dataset.searchResultIndex);
-      if (!Number.isFinite(index)) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const row = 1 + Math.floor(index / gridCols);
-      if (direction === 'up' && row === 1) {
-        focusSearchInput();
-        return;
-      }
-
-      const targetIndexByDirection = {
-        left: index - 1,
-        right: index + 1,
-        up: index - gridCols,
-        down: index + gridCols,
-      };
-      focusResultByIndex(targetIndexByDirection[direction]);
-    };
-
-    document.addEventListener('keydown', handleResultArrowNavigation, true);
-    return () => document.removeEventListener('keydown', handleResultArrowNavigation, true);
-  }, [focusResultByIndex, focusSearchInput, gridCols]);
-
   const handleSearchInputFocus = useCallback(() => {
     typingFocusLockRef.current = true;
     focusByKey?.(FOCUS_KEYS.SEARCH_INPUT);

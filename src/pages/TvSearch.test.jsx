@@ -435,9 +435,10 @@ test("moves focus from the search input to the first result on ArrowDown", async
 
   fireEvent.keyDown(input, { key: "ArrowDown" });
 
-  expect(screen.getByText("Movie 1").closest("a")).toHaveFocus();
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  expect(firstCard).toHaveFocus();
 
-  fireEvent.keyDown(document, { key: "ArrowRight" });
+  fireEvent.keyDown(firstCard, { key: "ArrowRight" });
 
   await waitFor(() => expect(screen.getByText("Movie 2").closest("a")).toHaveFocus());
 });
@@ -666,7 +667,7 @@ test("uses the rendered grid column count so ArrowDown can reach later visible r
   fireEvent.keyDown(input, { key: "ArrowDown" });
   expect(cards[0]).toHaveFocus();
 
-  fireEvent.keyDown(document, { key: "ArrowDown" });
+  fireEvent.keyDown(cards[0], { key: "ArrowDown" });
 
   await waitFor(() => expect(cards[3]).toHaveFocus());
 });
@@ -708,7 +709,7 @@ test("scrolls newly focused lower result rows into view while moving down", asyn
   await waitFor(() => expect(cards[0]).toHaveFocus());
 
   cards.forEach((card) => card.scrollIntoView.mockClear());
-  fireEvent.keyDown(document, { key: "ArrowDown" });
+  fireEvent.keyDown(cards[0], { key: "ArrowDown" });
 
   await waitFor(() => expect(cards[4]).toHaveFocus());
   expect(cards[4].scrollIntoView).toHaveBeenCalledWith(

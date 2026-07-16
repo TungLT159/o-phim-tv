@@ -56,7 +56,6 @@ function shouldIgnoreBackNavigation(event) {
   return Boolean(
       isTextEditingElement(target) ||
       isTextEditingElement(activeElement) ||
-      document.querySelector?.('.custom-video-player') ||
       target?.closest?.('.custom-video-player') ||
       activeElement?.closest?.('.custom-video-player'),
   );
