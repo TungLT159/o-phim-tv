@@ -17,6 +17,10 @@ jest.mock("./components/intro-splash/IntroSplash", () => ({ children }) => (
 
 jest.mock("./config/Routes", () => () => <main data-testid="tv-routes" />);
 
+jest.mock("./context/FocusContext", () => ({
+  FocusProvider: ({ children }) => <>{children}</>,
+}));
+
 jest.mock("./tauri-bridge", () => ({
   isTauri: () => false,
 }));

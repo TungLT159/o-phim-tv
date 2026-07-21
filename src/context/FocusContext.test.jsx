@@ -188,6 +188,39 @@ test("does not navigate back for Backspace or Escape from player controls", () =
   historyBackSpy.mockRestore();
 });
 
+test("records arrow direction before focused controls stop propagation", () => {
+  function DirectionProbe() {
+    const { getLastNavigationDirection } = useFocus();
+    const [direction, setDirection] = React.useState("none");
+
+    return (
+      <>
+        <button
+          type="button"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowUp") return;
+            event.stopPropagation();
+            setDirection(getLastNavigationDirection() || "none");
+          }}
+        >
+          Stop Arrow
+        </button>
+        <div data-testid="last-direction">{direction}</div>
+      </>
+    );
+  }
+
+  render(
+    <FocusProvider>
+      <DirectionProbe />
+    </FocusProvider>,
+  );
+
+  fireEvent.keyDown(screen.getByRole("button", { name: "Stop Arrow" }), { key: "ArrowUp" });
+
+  expect(screen.getByTestId("last-direction")).toHaveTextContent("up");
+});
+
 test("destroys Norigin between tests only in test mode", () => {
   const { unmount } = render(
     <FocusProvider>

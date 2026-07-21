@@ -63,7 +63,8 @@ jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
     getCurrentFocusKey: jest.fn(() => currentFocusKey),
     init: jest.fn(),
     setFocus,
-    useFocusable: ({ focusKey } = {}) => {
+    useFocusable: jest.fn((config = {}) => {
+      const { focusKey } = config;
       const ref = React.useMemo(() => {
         const callbackRef = (node) => {
           callbackRef.current = node;
@@ -82,8 +83,10 @@ jest.mock("@noriginmedia/norigin-spatial-navigation", () => {
         focused: currentFocusKey === focusKey,
         hasFocusedChild: false,
         focusSelf: () => setFocus(focusKey),
+        focusKey,
+        ...config,
       };
-    },
+    }),
   };
 });
 
@@ -246,6 +249,7 @@ test("keeps autoplay usable when localStorage throws", async () => {
   const setItemSpy = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
     throw new Error("storage write failed");
   });
+  const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
   try {
     mockPlayerWithAutoplayToggle();
 
@@ -266,6 +270,7 @@ test("keeps autoplay usable when localStorage throws", async () => {
   } finally {
     getItemSpy.mockRestore();
     setItemSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   }
 });
 
@@ -278,6 +283,60 @@ test("scrolls TV detail to the hero when the play button receives focus", async 
   await waitFor(() => {
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
+});
+
+test("scrolls TV detail to the hero when remote focus returns to the play button", async () => {
+  const spatialNavigation = require("@noriginmedia/norigin-spatial-navigation");
+  spatialNavigation.setFocus("DETAIL_PLAY");
+
+  renderTvDetail();
+  await screen.findByRole("button", { name: /Phát/ });
+  await waitFor(() => {
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+});
+
+test("aligns the detail play button near the top after upward remote navigation", async () => {
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
+
+  renderTvDetail();
+
+  const playButton = await screen.findByRole("button", { name: /Phát/ });
+  const spatialNavigation = require("@noriginmedia/norigin-spatial-navigation");
+  const playConfig = spatialNavigation.useFocusable.mock.calls.find(([config]) => (
+    config?.focusKey === "DETAIL_PLAY"
+  ))?.[0];
+
+  expect(playConfig).toBeDefined();
+  window.scrollTo.mockClear();
+  expect(playConfig.onArrowPress("up")).toBe(false);
+  fireEvent.focus(playButton);
+
+  expect(playButton.scrollIntoView).toHaveBeenCalledWith({
+    behavior: "smooth",
+    block: "start",
+    inline: "nearest",
+  });
+  expect(window.scrollTo).not.toHaveBeenCalled();
+});
+
+test("aligns the detail play button near the top when focus arrives from below", async () => {
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
+
+  renderTvDetail();
+
+  const playButton = await screen.findByRole("button", { name: /Phát/ });
+
+  window.scrollTo.mockClear();
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  fireEvent.focus(playButton);
+
+  expect(playButton.scrollIntoView).toHaveBeenCalledWith({
+    behavior: "smooth",
+    block: "start",
+    inline: "nearest",
+  });
+  expect(window.scrollTo).not.toHaveBeenCalled();
 });
 
 test("marks the TV detail page as the scroll root for returning to the play button", async () => {

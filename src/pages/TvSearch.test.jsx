@@ -3,6 +3,7 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TvSearch from "./TvSearch";
+import TvSidebar from "../components/header/TvSidebar";
 import { FocusProvider } from "../context/FocusContext";
 import tmdbApi from "../api/tmdbApi";
 import {
@@ -194,6 +195,12 @@ const focusElement = (element) => {
     element.focus();
   });
 };
+
+const createKeyboardEvent = (type, init) => new KeyboardEvent(type, {
+  bubbles: true,
+  cancelable: true,
+  ...init,
+});
 
 test("stores search results in the session cache", async () => {
   tmdbApi.search.mockResolvedValue({ data: { items: makeResults(2) } });
@@ -441,6 +448,141 @@ test("moves focus from the search input to the first result on ArrowDown", async
   fireEvent.keyDown(firstCard, { key: "ArrowRight" });
 
   await waitFor(() => expect(screen.getByText("Movie 2").closest("a")).toHaveFocus());
+});
+
+test("moves focus from the far-left search result to the search sidebar item", async () => {
+  tmdbApi.search.mockResolvedValue({
+    data: { items: makeResults(3) },
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tim-kiem"]}>
+      <FocusProvider>
+        <TvSidebar />
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+  await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
+
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  expect(firstCard).toHaveFocus();
+
+  fireEvent.keyDown(firstCard, { key: "ArrowLeft" });
+
+  expect(screen.getByRole("link", { name: "Tìm kiếm" })).toHaveFocus();
+});
+
+test("does not swallow ArrowLeft when left-edge search sidebar focus fails", async () => {
+  tmdbApi.search.mockResolvedValue({
+    data: { items: makeResults(1) },
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tim-kiem"]}>
+      <FocusProvider>
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+  await waitFor(() => expect(screen.getByText("Movie 1")).toBeInTheDocument());
+
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  const event = createKeyboardEvent("keydown", { key: "ArrowLeft" });
+
+  firstCard.dispatchEvent(event);
+
+  expect(event.defaultPrevented).toBe(false);
+});
+
+test("moves focus from a lower-row far-left search result to the sidebar", async () => {
+  tmdbApi.search.mockResolvedValue({
+    data: { items: makeResults(6) },
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tim-kiem"]}>
+      <FocusProvider>
+        <TvSidebar />
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+  await waitFor(() => expect(screen.getByText("Movie 6")).toBeInTheDocument());
+
+  const cards = screen.getAllByText(/Movie \d+/).map((title) => title.closest("a"));
+  cards.forEach((card, index) => {
+    card.getBoundingClientRect = jest.fn(() => ({
+      left: (index % 5) * 100,
+      right: (index % 5) * 100 + 80,
+      top: Math.floor(index / 5) * 160,
+      bottom: Math.floor(index / 5) * 160 + 120,
+      width: 80,
+      height: 120,
+    }));
+  });
+  fireEvent(window, new Event("resize"));
+  await waitFor(() => expect(cards[5].getBoundingClientRect).toHaveBeenCalled());
+
+  focusElement(cards[5]);
+  expect(cards[5]).toHaveFocus();
+
+  fireEvent.keyDown(cards[5], { key: "ArrowLeft" });
+
+  expect(screen.getByRole("link", { name: "Tìm kiếm" })).toHaveFocus();
+});
+
+test("restores search result focus when pressing right from the search sidebar item", async () => {
+  tmdbApi.search.mockResolvedValue({
+    data: { items: makeResults(3) },
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/tim-kiem"]}>
+      <FocusProvider>
+        <TvSidebar />
+        <TvSearch />
+      </FocusProvider>
+    </MemoryRouter>,
+  );
+
+  const input = screen.getByPlaceholderText("Nhập tên phim...");
+  focusElement(input);
+  fireEvent.change(input, { target: { value: "movie" } });
+  await waitFor(() => expect(screen.getByText("Movie 2")).toBeInTheDocument());
+
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  const firstCard = screen.getByText("Movie 1").closest("a");
+  expect(firstCard).toHaveFocus();
+
+  fireEvent.keyDown(firstCard, { key: "ArrowRight" });
+  const secondCard = screen.getByText("Movie 2").closest("a");
+  await waitFor(() => expect(secondCard).toHaveFocus());
+
+  fireEvent.keyDown(secondCard, { key: "ArrowLeft" });
+  await waitFor(() => expect(firstCard).toHaveFocus());
+
+  fireEvent.keyDown(firstCard, { key: "ArrowLeft" });
+  const searchSidebarItem = screen.getByRole("link", { name: "Tìm kiếm" });
+  expect(searchSidebarItem).toHaveFocus();
+
+  fireEvent.keyDown(searchSidebarItem, { key: "ArrowRight" });
+
+  await waitFor(() => expect(firstCard).toHaveFocus());
 });
 
 test("keeps editing keys inside the focused search input", async () => {

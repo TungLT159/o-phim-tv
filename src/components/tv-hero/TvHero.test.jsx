@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import TvHero from "./TvHero";
 import tmdbApi from "../../api/tmdbApi";
 import axiosClient from "../../api/axiosClient";
-import { useFocusable } from "../../context/FocusContext";
+import { FOCUS_KEYS, useFocus, useFocusable } from "../../context/FocusContext";
 
 jest.mock("../../api/tmdbApi", () => ({
   __esModule: true,
@@ -29,6 +29,10 @@ jest.mock("../../utils/tmdbImageFetcher", () => ({
 }));
 
 jest.mock("../../context/FocusContext", () => ({
+  FOCUS_KEYS: {
+    HOME_HERO_PLAY: "HOME_HERO_PLAY",
+  },
+  useFocus: jest.fn(),
   useFocusable: jest.fn(),
 }));
 
@@ -69,6 +73,7 @@ beforeEach(() => {
       ],
     },
   });
+  useFocus.mockReturnValue({ focusByKey: jest.fn(), getLastNavigationDirection: jest.fn() });
   useFocusable.mockReturnValue({ ref: { current: null }, focused: false });
   axiosClient.get.mockResolvedValue({ data: { item: { name: "Hero Detail" } } });
   window.scrollTo = jest.fn();
@@ -103,4 +108,62 @@ test("scrolls to the top when remote focus returns to the TV hero play button", 
   await waitFor(() => {
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
   });
+});
+
+test("exposes the hero play focus key for DOM focus fallback", async () => {
+  renderTvHero();
+
+  expect(await screen.findByRole("button", { name: "Xem ngay" })).toHaveAttribute(
+    "data-focus-key",
+    FOCUS_KEYS.HOME_HERO_PLAY,
+  );
+});
+
+test("aligns the hero play button near the top after upward remote navigation", async () => {
+  const focusRef = { current: null };
+  useFocusable.mockReturnValue({ ref: focusRef, focused: false });
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
+
+  renderTvHero();
+
+  const playButton = await screen.findByRole("button", { name: "Xem ngay" });
+  focusRef.current = playButton;
+  const focusConfig = useFocusable.mock.calls.find(([config]) => (
+    config?.focusKey === FOCUS_KEYS.HOME_HERO_PLAY
+  ))?.[0];
+
+  expect(focusConfig).toBeDefined();
+  window.scrollTo.mockClear();
+  expect(focusConfig.onArrowPress("up")).toBe(false);
+  fireEvent.focus(playButton);
+
+  expect(playButton.scrollIntoView).toHaveBeenCalledWith({
+    behavior: "smooth",
+    block: "start",
+    inline: "nearest",
+  });
+  expect(window.scrollTo).not.toHaveBeenCalled();
+});
+
+test("aligns the hero play button near the top when focus arrives from below", async () => {
+  const focusRef = { current: null };
+  useFocus.mockReturnValue({
+    focusByKey: jest.fn(),
+    getLastNavigationDirection: jest.fn(() => "up"),
+  });
+  useFocusable.mockReturnValue({ ref: focusRef, focused: false });
+  window.HTMLElement.prototype.scrollIntoView = jest.fn();
+
+  renderTvHero();
+
+  const playButton = await screen.findByRole("button", { name: "Xem ngay" });
+  focusRef.current = playButton;
+  fireEvent.focus(playButton);
+
+  expect(playButton.scrollIntoView).toHaveBeenCalledWith({
+    behavior: "smooth",
+    block: "start",
+    inline: "nearest",
+  });
+  expect(window.scrollTo).not.toHaveBeenCalled();
 });

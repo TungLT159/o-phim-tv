@@ -1,13 +1,21 @@
 import React from "react";
 import "@testing-library/jest-dom";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import ContentRow from "./ContentRow";
-import { useFocusable } from "../../context/FocusContext";
+import { useFocus, useFocusable } from "../../context/FocusContext";
 import { fetchTMDBImages } from "../../utils/tmdbImageFetcher";
 
 jest.mock("../../context/FocusContext", () => ({
+  FOCUS_KEYS: {
+    HOME_HERO_PLAY: "HOME_HERO_PLAY",
+  },
+  focusKeyForHomeCard: (rowId, index) => `HOME_CARD_${rowId}_${index}`,
   useFocusable: jest.fn(),
+  useFocus: jest.fn(() => ({
+    focusByKey: jest.fn(),
+    rememberContentFocus: jest.fn(),
+  })),
 }));
 
 jest.mock("../../utils/tmdbImageFetcher", () => ({
@@ -32,8 +40,13 @@ const createDeferred = () => {
 
 beforeEach(() => {
   useFocusable.mockClear();
+  useFocus.mockClear();
   fetchTMDBImages.mockClear();
   useFocusable.mockReturnValue({ ref: { current: null }, focused: false });
+  useFocus.mockReturnValue({
+    focusByKey: jest.fn(),
+    rememberContentFocus: jest.fn(),
+  });
   fetchTMDBImages.mockResolvedValue({ posterUrl: "/tmdb-poster.jpg" });
 });
 
@@ -59,7 +72,9 @@ test("renders existing content row defaults", async () => {
   );
   expect(screen.getByText("Tập 4")).toHaveClass("content-row__badge");
   expect(screen.getByText("2026")).toHaveClass("content-row__year");
-  expect(useFocusable).toHaveBeenCalledWith(1, 3, 0);
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_3_0",
+  }));
 
   await waitFor(() => {
     expect(screen.getByRole("img", { name: "Default Movie" })).toHaveAttribute(
@@ -82,7 +97,118 @@ test("uses a custom TV focus zone when provided", () => {
     ],
   });
 
-  expect(useFocusable).toHaveBeenCalledWith(5, 4, 0);
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_4_0",
+  }));
+});
+
+test("routes ArrowUp from the first home row back to the hero play button", () => {
+  const focusByKey = jest.fn(() => true);
+  useFocus.mockReturnValue({
+    focusByKey,
+    rememberContentFocus: jest.fn(),
+  });
+
+  renderContentRow({
+    title: "Tiếp tục xem",
+    row: 1,
+    rowId: "continue-watching",
+    items: [
+      {
+        slug: "resume-movie",
+        name: "Resume Movie",
+      },
+    ],
+  });
+
+  const focusConfig = useFocusable.mock.calls.find(([config]) => (
+    config?.focusKey === "HOME_CARD_continue-watching_0"
+  ))?.[0];
+
+  expect(focusConfig).toBeDefined();
+  expect(focusConfig.onArrowPress("up")).toBe(false);
+  expect(focusByKey).toHaveBeenCalledWith("HOME_HERO_PLAY", { direction: "up" });
+});
+
+test("routes DOM ArrowUp from continue watching cards back to the hero play button", () => {
+  const focusByKey = jest.fn(() => true);
+  useFocus.mockReturnValue({
+    focusByKey,
+    rememberContentFocus: jest.fn(),
+  });
+
+  renderContentRow({
+    title: "Tiếp tục xem",
+    row: 1,
+    rowId: "continue-watching",
+    items: [
+      {
+        slug: "resume-movie",
+        name: "Resume Movie",
+      },
+    ],
+  });
+
+  const card = screen.getByRole("link", { name: /Resume Movie/i });
+
+  expect(fireEvent.keyDown(card, { key: "ArrowUp" })).toBe(false);
+  expect(focusByKey).toHaveBeenCalledWith("HOME_HERO_PLAY", { direction: "up" });
+});
+
+test("routes ArrowUp from the first mounted home row back to the hero play button", () => {
+  const focusByKey = jest.fn(() => true);
+  useFocus.mockReturnValue({
+    focusByKey,
+    rememberContentFocus: jest.fn(),
+  });
+
+  renderContentRow({
+    title: "Phim mới cập nhật",
+    row: 2,
+    rowId: "phim-moi",
+    items: [
+      {
+        slug: "first-mounted-movie",
+        name: "First Mounted Movie",
+      },
+    ],
+  });
+
+  const focusConfig = useFocusable.mock.calls.find(([config]) => (
+    config?.focusKey === "HOME_CARD_phim-moi_0"
+  ))?.[0];
+
+  expect(focusConfig).toBeDefined();
+  expect(focusConfig.onArrowPress("up")).toBe(false);
+  expect(focusByKey).toHaveBeenCalledWith("HOME_HERO_PLAY", { direction: "up" });
+});
+
+test("handles ArrowUp from the first mounted home row when hero focus is unavailable", () => {
+  const focusByKey = jest.fn(() => false);
+  useFocus.mockReturnValue({
+    focusByKey,
+    rememberContentFocus: jest.fn(),
+  });
+
+  renderContentRow({
+    title: "Tiếp tục xem",
+    row: 1,
+    rowId: "continue-watching",
+    items: [
+      {
+        slug: "resume-movie",
+        name: "Resume Movie",
+      },
+    ],
+  });
+
+  const focusConfig = useFocusable.mock.calls.find(([config]) => (
+    config?.focusKey === "HOME_CARD_continue-watching_0"
+  ))?.[0];
+
+  expect(focusConfig).toBeDefined();
+  expect(focusConfig.onArrowPress("up")).toBe(false);
+  expect(focusByKey).toHaveBeenCalledWith("HOME_HERO_PLAY", { direction: "up" });
 });
 
 test("uses the default poster for normal rows without stored poster or TMDB", () => {

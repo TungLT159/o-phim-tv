@@ -15,6 +15,7 @@ import InfoOverlay from "./info-overlay/InfoOverlay";
 import AutoplayCard from "./autoplay-card/AutoplayCard";
 import SeekTooltip from './seek-tooltip/SeekTooltip';
 import useThumbnailPreview from "../../hooks/useThumbnailPreview";
+import { useOptionalFocus } from "../../context/FocusContext";
 import "./custom-video-player.scss";
 
 export const shouldUseNativeControls = () => {
@@ -144,14 +145,18 @@ const isConcretePlayerFocusTarget = (player, element) => {
   );
 };
 
-const moveSidebarFocus = (elements, direction) => {
+const moveSidebarFocus = (elements, direction, focusByKey) => {
   if (!elements.length) return;
 
   const currentIndex = elements.indexOf(document.activeElement);
   const nextIndex = currentIndex < 0
     ? 0
     : Math.min(Math.max(currentIndex + (direction === "ArrowUp" || direction === "ArrowLeft" ? -1 : 1), 0), elements.length - 1);
-  elements[nextIndex]?.focus();
+  const nextElement = elements[nextIndex];
+  const nextFocusKey = nextElement?.getAttribute?.('data-focus-key');
+
+  if (nextFocusKey && focusByKey?.(nextFocusKey)) return;
+  nextElement?.focus();
 };
 
 const CustomVideoPlayer = ({
@@ -228,6 +233,9 @@ const CustomVideoPlayer = ({
   const [seekPreviewTime, setSeekPreviewTime] = useState(null);
   const isSeekingRef = useRef(false);
   const seekTargetRef = useRef(0);
+  const lastLowerControlFocusRef = useRef(null);
+  const focusContext = useOptionalFocus();
+  const focusByKey = focusContext?.focusByKey;
 
   const {
     preview: thumbnailPreview,
@@ -617,6 +625,22 @@ const CustomVideoPlayer = ({
     }
   }, []);
 
+  const rememberLowerControlFocus = useCallback(() => {
+    const activeElement = document.activeElement;
+    if (activeElement?.closest?.('.custom-video-player__controls')) {
+      lastLowerControlFocusRef.current = activeElement;
+    }
+  }, []);
+
+  const focusLastLowerControl = useCallback(() => {
+    if (isVisibleFocusable(lastLowerControlFocusRef.current)) {
+      lastLowerControlFocusRef.current.focus();
+      return true;
+    }
+
+    return focusElement(playerRef.current, ".custom-video-player__control-btn--play");
+  }, []);
+
   const focusFirstSidebarControl = useCallback(() => {
     const sidebar = playerRef.current?.querySelector('.episode-sidebar');
     if (!sidebar) return false;
@@ -935,6 +959,7 @@ const CustomVideoPlayer = ({
         if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
           event.preventDefault();
           event.stopPropagation();
+          event.stopImmediatePropagation?.();
 
           const items = Array.from(sidebar?.querySelectorAll('button:not(:disabled)') || [])
             .filter(isVisibleFocusable);
@@ -942,11 +967,12 @@ const CustomVideoPlayer = ({
           if (!sidebarContainsFocus) {
             focusFirstSidebarControl();
           } else {
-            moveSidebarFocus(items, event.key);
+            moveSidebarFocus(items, event.key, focusByKey);
           }
         } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           event.stopPropagation();
+          event.stopImmediatePropagation?.();
 
           if (sidebarContainsFocus) {
             document.activeElement?.click?.();
@@ -999,6 +1025,8 @@ const CustomVideoPlayer = ({
         [" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       ) {
         event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
       }
 
       if (
@@ -1039,13 +1067,9 @@ const CustomVideoPlayer = ({
         case "ArrowUp":
           revealControls();
           if (isTimelineFocused) {
-            const centerPlayBtn = playerRef.current?.querySelector(".custom-video-player__center-play");
-            if (!isVisibleFocusable(centerPlayBtn)) {
-              focusElement(playerRef.current, ".custom-video-player__close-btn");
-            } else {
-              centerPlayBtn.focus();
-            }
+            focusElement(playerRef.current, ".custom-video-player__close-btn");
           } else if (isInControls) {
+            rememberLowerControlFocus();
             focusTimeline();
           } else if (isCloseBtn) {
             const cp = playerRef.current?.querySelector(".custom-video-player__center-play");
@@ -1055,7 +1079,7 @@ const CustomVideoPlayer = ({
         case "ArrowDown":
           revealControls();
           if (isTimelineFocused) {
-            focusElement(playerRef.current, ".custom-video-player__control-btn--play");
+            focusLastLowerControl();
           } else if (isCloseBtn) {
             focusElement(playerRef.current, ".custom-video-player__progress");
           } else if (!isInControls) {
@@ -1085,13 +1109,13 @@ const CustomVideoPlayer = ({
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("keyup", handleKeyUp);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusDefaultPlayerTarget, focusFirstSidebarControl, focusTimeline, handleAutoplayCardKeyDown, isPlaying, showControls]);
+  }, [closeSidebar, sidebarOpen, onClose, revealControls, togglePlay, startSeekAcceleration, stopSeekAcceleration, moveControlFocus, focusByKey, focusDefaultPlayerTarget, focusFirstSidebarControl, focusLastLowerControl, focusTimeline, handleAutoplayCardKeyDown, isPlaying, rememberLowerControlFocus, showControls]);
 
   useEffect(() => {
     if (!showFpsDebug) return undefined;

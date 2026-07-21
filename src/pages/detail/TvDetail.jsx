@@ -42,10 +42,22 @@ const writeAutoPlayPreference = (enabled) => {
 
 function PlayButton({ label, onClick, onFocus, shouldFocusSelf = false }) {
   const hasFocusedSelfRef = useRef(false);
+  const upwardFocusIntentRef = useRef(false);
   const { ref, focused, focusSelf } = useFocusable({
     focusKey: FOCUS_KEYS.DETAIL_PLAY,
     onEnterPress: onClick,
+    onArrowPress: (direction) => {
+      if (direction !== 'up') return true;
+      upwardFocusIntentRef.current = true;
+      return false;
+    },
   });
+
+  const handleFocus = useCallback(() => {
+    const shouldAlignButton = upwardFocusIntentRef.current;
+    upwardFocusIntentRef.current = false;
+    onFocus?.({ alignButton: shouldAlignButton, target: ref.current });
+  }, [onFocus, ref]);
 
   useEffect(() => {
     if (!shouldFocusSelf || hasFocusedSelfRef.current) return;
@@ -53,13 +65,18 @@ function PlayButton({ label, onClick, onFocus, shouldFocusSelf = false }) {
     focusSelf?.();
   }, [focusSelf, shouldFocusSelf]);
 
+  useEffect(() => {
+    if (!focused) return;
+    handleFocus();
+  }, [focused, handleFocus]);
+
   return (
     <button
       ref={ref}
       type="button"
       className={`tv-detail__play-btn ${focused ? 'tv-detail__play-btn--focused' : ''}`}
       onClick={onClick}
-      onFocus={onFocus}
+      onFocus={handleFocus}
     >
       <i className="bx bx-play" /> {label}
     </button>
@@ -75,7 +92,7 @@ export default function TvDetail() {
   const [tmdbOverview, setTmdbOverview] = useState('');
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(readAutoPlayPreference);
   const [savedProgress, setSavedProgress] = useState(null);
-  const { focusByKey } = useFocus();
+  const { focusByKey, getLastNavigationDirection } = useFocus();
   const videoRef = useRef(null);
 
   const query = new URLSearchParams(location.search);
@@ -237,11 +254,18 @@ export default function TvDetail() {
     };
   }, [currentEp, id, movie, playing]);
 
-  const handlePlayButtonFocus = useCallback(() => {
+  const handlePlayButtonFocus = useCallback(({ alignButton = false, target } = {}) => {
+    const shouldAlignButton = alignButton || getLastNavigationDirection?.() === 'up';
+
     window.requestAnimationFrame?.(() => {
+      if (shouldAlignButton) {
+        target?.scrollIntoView?.({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        return;
+      }
+
       window.scrollTo?.({ top: 0, behavior: 'smooth' });
     });
-  }, []);
+  }, [getLastNavigationDirection]);
 
   const handleEpisodeClick = useCallback((ep) => {
     selectEpisode(ep);
@@ -296,7 +320,7 @@ export default function TvDetail() {
 
   const isSeries = episodeList.length > 0;
 
-  const renderTvDetailEpisode = (ep, row, col) => {
+  const renderTvDetailEpisode = (ep, row, col, focusMeta) => {
     const isCurrent = currentEp?.episodeKey === ep.episodeKey || currentEp?.slug === ep.slug || currentEp?.name === ep.name;
     return (
       <EpisodeListItem
@@ -305,6 +329,8 @@ export default function TvDetail() {
         zone={1}
         row={row}
         col={col}
+        focusKey={focusMeta?.focusKey}
+        onArrowPress={focusMeta?.onArrowPress}
         isCurrent={isCurrent}
         onClick={() => handleEpisodeClick(ep)}
       />

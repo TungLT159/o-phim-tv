@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './content-row.scss';
-import { focusKeyForHomeCard, useFocus, useFocusable } from '../../context/FocusContext';
+import { FOCUS_KEYS, focusKeyForHomeCard, useFocus, useFocusable } from '../../context/FocusContext';
 import { fetchTMDBImages } from '../../utils/tmdbImageFetcher';
 
 const FALLBACK = '/poster-mau.png';
@@ -13,6 +13,16 @@ const getDefaultFallbackPoster = () => FALLBACK;
 const shouldUseFetchedPoster = (posterUrl, fallbackPoster) =>
   posterUrl && !(posterUrl === FALLBACK && fallbackPoster !== FALLBACK);
 
+const isInFirstMountedContentRow = (cardElement) => {
+  const currentRow = cardElement?.closest?.('.content-row');
+  if (!currentRow) return false;
+
+  const firstMountedRow = Array.from(document.querySelectorAll('.content-row'))
+    .find((rowElement) => rowElement.querySelector('[data-home-content-card-focus-key]'));
+
+  return firstMountedRow === currentRow;
+};
+
 function ContentCardContent({
   item,
   getItemUrl = getDefaultItemUrl,
@@ -22,6 +32,7 @@ function ContentCardContent({
   cardRef,
   focused = false,
   focusKey,
+  onKeyDown,
 }) {
   const fallbackPoster = getFallbackPoster(item) || FALLBACK;
   const badge = getItemBadge(item);
@@ -62,6 +73,7 @@ function ContentCardContent({
       className={`content-row__card ${focused ? 'content-row__card--focused' : ''}`}
       ref={cardRef}
       data-home-content-card-focus-key={focusKey}
+      onKeyDown={onKeyDown}
     >
       <div className="content-row__poster">
         <img src={poster} alt={item.name || item.title || ''} loading="lazy" />
@@ -77,14 +89,33 @@ function ContentCardContent({
 
 function FocusableContentCard({ row, rowId, col, zone = 1, ...props }) {
   const focusKey = focusKeyForHomeCard(rowId || row, col);
-  const { rememberContentFocus } = useFocus();
+  const { focusByKey, rememberContentFocus } = useFocus();
+  const moveUpToHero = useCallback(() => {
+    const cardElement = document.querySelector(`[data-home-content-card-focus-key="${focusKey}"]`);
+    if (!isInFirstMountedContentRow(cardElement)) return false;
+
+    focusByKey?.(FOCUS_KEYS.HOME_HERO_PLAY, { direction: 'up' });
+    return true;
+  }, [focusByKey, focusKey]);
   const { ref, focused } = useFocusable({
     focusKey,
     onFocus: () => rememberContentFocus?.(focusKey),
     onEnterPress: () => ref.current?.click?.(),
+    onArrowPress: (direction) => {
+      if (direction !== 'up') return true;
+      return moveUpToHero() ? false : true;
+    },
   });
 
-  return <ContentCardContent {...props} cardRef={ref} focused={focused} focusKey={focusKey} />;
+  const handleKeyDown = useCallback((event) => {
+    if (event.key !== 'ArrowUp') return;
+    if (!moveUpToHero()) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+  }, [moveUpToHero]);
+
+  return <ContentCardContent {...props} cardRef={ref} focused={focused} focusKey={focusKey} onKeyDown={handleKeyDown} />;
 }
 
 function PlainContentCard(props) {

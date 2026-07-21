@@ -39,7 +39,7 @@ function EpisodeSidebarItem({ episode, row, isCurrent, onClick, focusKey }) {
   return (
     <button
       ref={ref}
-      className={`episode-sidebar__item ${focused ? 'episode-sidebar__item--focused' : ''} ${isCurrent ? 'episode-sidebar__item--current' : ''}`}
+      className={`episode-sidebar__item ${focused ? 'episode-sidebar__item--focused' : ''} ${isCurrent && !focused ? 'episode-sidebar__item--current' : ''}`}
       onClick={onClick}
       type="button"
       data-focus-row={row}

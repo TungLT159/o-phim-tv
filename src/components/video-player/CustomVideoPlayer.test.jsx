@@ -625,6 +625,20 @@ test("episode dialog focuses the currently playing episode when opened", async (
   await waitFor(() => expect(screen.getByRole("button", { name: "Tập 2" })).toHaveFocus());
 });
 
+test("episode dialog does not stack current and focused visual states", async () => {
+  renderPlayerWithEpisodeDialog({
+    currentEpisode: { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+
+  const currentEpisode = screen.getByRole("button", { name: "Tập 1" });
+  await waitFor(() => expect(currentEpisode).toHaveFocus());
+  expect(currentEpisode).toHaveAttribute("aria-current", "true");
+  expect(currentEpisode).toHaveClass("episode-sidebar__item--focused");
+  expect(currentEpisode).not.toHaveClass("episode-sidebar__item--current");
+});
+
 test("episode dialog current focus is scoped to the mounted player sidebar", () => {
   const externalCurrentEpisode = document.createElement("button");
   externalCurrentEpisode.className = "episode-sidebar__item episode-sidebar__item--current";
@@ -1236,14 +1250,9 @@ test("remote arrow entry focuses the timeline before player controls", () => {
   expect(screen.getByLabelText("Tua video")).toHaveFocus();
 });
 
-test("remote arrows can focus the center play button before playback starts", () => {
+test("remote OK can still play before playback starts", () => {
   const { video } = renderPlayer();
-  const progress = screen.getByLabelText("Tua video");
-  progress.focus();
-
-  fireEvent.keyDown(window, { key: "ArrowUp" });
-
-  expect(screen.getByLabelText("Phát video")).toHaveFocus();
+  screen.getByLabelText("Phát video").focus();
 
   fireEvent.keyDown(window, { key: "Enter" });
 
@@ -2012,6 +2021,34 @@ test("remote arrows move focus inside the episode dialog", () => {
   expect(playerProps.onSelectEpisode).toHaveBeenCalledWith(playerProps.episodes[1]);
 });
 
+test("remote up from the timeline moves to the back button while down moves to controls", () => {
+  renderPlayerWithEpisodeControls({ onClose: jest.fn() });
+
+  const progress = screen.getByLabelText("Tua video");
+  progress.focus();
+
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(screen.getByRole("button", { name: "Quay lại" })).toHaveFocus();
+
+  progress.focus();
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(screen.getAllByLabelText("Phát")[1]).toHaveFocus();
+});
+
+test("timeline ArrowDown returns to the last focused lower control", () => {
+  renderPlayerWithEpisodeControls({ onClose: jest.fn() });
+
+  const rewindButton = screen.getByLabelText("Tua lùi 10 giây");
+  const progress = screen.getByLabelText("Tua video");
+
+  rewindButton.focus();
+  fireEvent.keyDown(window, { key: "ArrowUp" });
+  expect(progress).toHaveFocus();
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+  expect(rewindButton).toHaveFocus();
+});
+
 test("episode dialog arrow handling does not use geometry-based focus movement", () => {
   const fs = require("fs");
   const path = require("path");
@@ -2051,6 +2088,82 @@ test("remote vertical arrows keep visible focus moving through episode dialog it
   expect(episodeTwo).toHaveFocus();
   expect(episodeTwo).toHaveClass("episode-sidebar__item--focused");
   expect(episodeThree).not.toHaveClass("episode-sidebar__item--focused");
+});
+
+test("episode dialog arrows do not skip items when another spatial listener also handles arrows", () => {
+  const externalSpatialListener = jest.fn((event) => {
+    if (event.key !== "ArrowDown") return;
+    const activeElement = document.activeElement;
+    if (!activeElement?.classList?.contains("episode-sidebar__item")) return;
+
+    const items = Array.from(document.querySelectorAll(".episode-sidebar__item"));
+    const currentIndex = items.indexOf(activeElement);
+    items[currentIndex + 1]?.focus();
+  });
+  window.addEventListener("keydown", externalSpatialListener);
+
+  try {
+    renderPlayerWithEpisodeDialog({
+      episodes: [
+        { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+        { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+        { name: "3", slug: "tap-3", episodeKey: "0:tap-3" },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+    const episodeOne = screen.getByRole("button", { name: "Tập 1" });
+    const episodeTwo = screen.getByRole("button", { name: "Tập 2" });
+    const episodeThree = screen.getByRole("button", { name: "Tập 3" });
+
+    expect(episodeOne).toHaveFocus();
+    fireEvent.keyDown(episodeOne, { key: "ArrowDown" });
+
+    expect(episodeTwo).toHaveFocus();
+    expect(episodeThree).not.toHaveFocus();
+  } finally {
+    window.removeEventListener("keydown", externalSpatialListener);
+  }
+});
+
+test("timeline ArrowDown reaches controls when another spatial listener also handles arrows", () => {
+  const externalSpatialListener = jest.fn((event) => {
+    if (event.key !== "ArrowDown") return;
+    if (!document.activeElement?.classList?.contains("custom-video-player__progress")) return;
+    document.querySelector(".custom-video-player__close-btn")?.focus();
+  });
+  window.addEventListener("keydown", externalSpatialListener);
+
+  try {
+    renderPlayerWithEpisodeControls({ onClose: jest.fn() });
+
+    const progress = screen.getByLabelText("Tua video");
+    progress.focus();
+    fireEvent.keyDown(progress, { key: "ArrowDown" });
+
+    expect(screen.getAllByLabelText("Phát")[1]).toHaveFocus();
+  } finally {
+    window.removeEventListener("keydown", externalSpatialListener);
+  }
+});
+
+test("episode dialog arrow movement syncs focus by data focus key", () => {
+  renderPlayerWithEpisodeDialog({
+    episodes: [
+      { name: "1", slug: "tap-1", episodeKey: "0:tap-1" },
+      { name: "2", slug: "tap-2", episodeKey: "0:tap-2" },
+    ],
+  });
+
+  const spatialNavigation = require("@noriginmedia/norigin-spatial-navigation");
+  fireEvent.click(screen.getByRole("button", { name: "Danh sách tập" }));
+  const episodeTwo = screen.getByRole("button", { name: "Tập 2" });
+  const episodeTwoFocusKey = episodeTwo.getAttribute("data-focus-key");
+  spatialNavigation.setFocus.mockClear();
+
+  fireEvent.keyDown(window, { key: "ArrowDown" });
+
+  expect(spatialNavigation.setFocus).toHaveBeenCalledWith(episodeTwoFocusKey);
 });
 
 test("double tap on left half seeks backward 10 seconds", () => {

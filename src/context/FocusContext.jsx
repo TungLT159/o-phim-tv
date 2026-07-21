@@ -29,6 +29,13 @@ export const focusKeyForPlayerEpisode = (episodeKey, index) => `PLAYER_EPISODE_$
 
 const FocusContext = createContext(null);
 
+const NAVIGATION_DIRECTION_BY_KEY = {
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+};
+
 let spatialNavigationInitialized = false;
 
 function ensureSpatialNavigationInitialized() {
@@ -111,16 +118,27 @@ function scheduleTask(callback) {
   return () => clearTimeout(timerId);
 }
 
+function getFocusableElementByKey(focusKey) {
+  if (!focusKey || typeof document === 'undefined') return null;
+  return document.querySelector?.(`[data-focus-key="${focusKey}"], [data-home-content-card-focus-key="${focusKey}"]`) || null;
+}
+
 export function FocusProvider({ children }) {
   const registeredKeysRef = useRef(new Set());
   const firstRegisteredKeyRef = useRef(null);
   const lastContentFocusKeyRef = useRef(FOCUS_KEYS.HOME_HERO_PLAY);
+  const lastNavigationDirectionRef = useRef(null);
   const [state, setState] = useState(() => createFocusState(getCurrentFocusKey?.()));
 
   useEffect(() => {
     ensureSpatialNavigationInitialized();
 
     const handleKeyDown = (event) => {
+      const navigationDirection = NAVIGATION_DIRECTION_BY_KEY[event.key];
+      if (navigationDirection) {
+        lastNavigationDirectionRef.current = navigationDirection;
+      }
+
       if (event.key !== 'Backspace' && event.key !== 'Escape') return;
       if (shouldIgnoreBackNavigation(event)) return;
 
@@ -128,10 +146,10 @@ export function FocusProvider({ children }) {
       window.history.back();
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
       destroySpatialNavigationForTests();
     };
   }, []);
@@ -177,10 +195,23 @@ export function FocusProvider({ children }) {
     Boolean(focusKey) && firstRegisteredKeyRef.current === focusKey
   ), []);
 
-  const focusKeyIfAvailable = useCallback((focusKey) => {
+  const focusKeyIfAvailable = useCallback((focusKey, options = {}) => {
     if (!focusKey) return false;
-    if (typeof doesFocusableExist === 'function' && !doesFocusableExist(focusKey)) return false;
+    const focusableElement = getFocusableElementByKey(focusKey);
+    const focusableExists = typeof doesFocusableExist === 'function'
+      ? doesFocusableExist(focusKey)
+      : Boolean(focusableElement);
+    if (
+      !focusableExists &&
+      !focusableElement
+    ) {
+      return false;
+    }
+    lastNavigationDirectionRef.current = options?.direction || null;
     setFocus(focusKey);
+    if (!focusableExists) {
+      focusableElement?.focus?.();
+    }
     syncFocusState(focusKey);
     return true;
   }, [syncFocusState]);
@@ -225,9 +256,11 @@ export function FocusProvider({ children }) {
     focusKeyIfAvailable(focusKey);
   }, [focusKeyIfAvailable]);
 
-  const focusByKey = useCallback((focusKey) => {
-    return focusKeyIfAvailable(focusKey);
+  const focusByKey = useCallback((focusKey, options) => {
+    return focusKeyIfAvailable(focusKey, options);
   }, [focusKeyIfAvailable]);
+
+  const getLastNavigationDirection = useCallback(() => lastNavigationDirectionRef.current, []);
 
   const rememberContentFocus = useCallback((focusKey) => {
     if (focusKey) lastContentFocusKeyRef.current = focusKey;
@@ -251,6 +284,7 @@ export function FocusProvider({ children }) {
     skipToZone,
     setFocusPosition,
     focusByKey,
+    getLastNavigationDirection,
     rememberContentFocus,
     restoreContentFocus,
     getCurrentFocusKey,
@@ -258,6 +292,7 @@ export function FocusProvider({ children }) {
     clearTrap,
     focusByKey,
     focusKeyIfAvailable,
+    getLastNavigationDirection,
     registerFocusable,
     rememberContentFocus,
     restoreContentFocus,

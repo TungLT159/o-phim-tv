@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './tv-sidebar.scss';
 import logo from '../../assets/logo.png';
@@ -15,12 +15,20 @@ function SidebarItem({ to, icon, label, focusKey, onFocusedChange, onArrowRight,
     onFocus: () => onFocusedChange?.(true),
     onBlur: () => onFocusedChange?.(false),
   });
+  const handleKeyDown = useCallback((event) => {
+    if (event.key !== 'ArrowRight') return;
+
+    if (onArrowRight?.()) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, [onArrowRight]);
 
   const className = `tv-sidebar__item ${focused ? 'tv-sidebar__item--focused' : ''} ${props.className || ''}`;
 
   if (to) {
     return (
-      <Link to={to} ref={ref} className={className}>
+      <Link to={to} ref={ref} className={className} data-focus-key={focusKey} onKeyDown={handleKeyDown}>
         {icon && <i className={`bx ${icon}`} aria-hidden="true" />}
         <span>{label}</span>
       </Link>

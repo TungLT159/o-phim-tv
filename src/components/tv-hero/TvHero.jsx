@@ -70,6 +70,7 @@ const HeroItem = ({ item, focusRef, focused, onPlayButtonFocus }) => {
             onClick={handlePlay}
             onFocus={onPlayButtonFocus}
             aria-label="Xem ngay"
+            data-focus-key={FOCUS_KEYS.HOME_HERO_PLAY}
           >
             <i className="bx bx-play" />
             <span>Xem ngay</span>
@@ -84,11 +85,16 @@ const TvHero = ({ items: providedItems = [] }) => {
   const [fetchedItems, setFetchedItems] = useState([]);
   const items = providedItems.length ? providedItems : fetchedItems;
   const hasFocusedInitiallyRef = useRef(false);
-  const { focusByKey } = useFocus();
+  const upwardFocusIntentRef = useRef(false);
+  const { focusByKey, getLastNavigationDirection } = useFocus();
   const { ref, focused, focusSelf } = useFocusable({
     focusKey: FOCUS_KEYS.HOME_HERO_PLAY,
     onEnterPress: () => ref.current?.click?.(),
     onArrowPress: (direction) => {
+      if (direction === 'up') {
+        upwardFocusIntentRef.current = true;
+        return false;
+      }
       if (direction !== 'down') return true;
       const firstContentCardFocusKey = document.querySelector(
         '[data-home-content-card-focus-key]',
@@ -99,10 +105,18 @@ const TvHero = ({ items: providedItems = [] }) => {
   });
 
   const handlePlayButtonFocus = useCallback(() => {
+    const shouldAlignButton = upwardFocusIntentRef.current || getLastNavigationDirection?.() === 'up';
+    upwardFocusIntentRef.current = false;
+
     window.requestAnimationFrame?.(() => {
+      if (shouldAlignButton) {
+        ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        return;
+      }
+
       window.scrollTo?.({ top: 0, behavior: 'smooth' });
     });
-  }, []);
+  }, [getLastNavigationDirection, ref]);
 
   useEffect(() => {
     if (!focused) return;

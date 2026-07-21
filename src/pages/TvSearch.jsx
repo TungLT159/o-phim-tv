@@ -13,11 +13,15 @@ import './tv-search.scss';
 const DEFAULT_COLS = 5;
 const FALLBACK = '/poster-mau.png';
 
-function FocusCard({ item, row, index, gridCols, resultCount, onFirstRowArrowUp, onMoveResult, onRememberResult }) {
+function FocusCard({ item, row, index, gridCols, resultCount, onFirstRowArrowUp, onMoveResult, onMoveToSidebar, onRememberResult }) {
   const moveByDirection = useCallback((direction) => {
     if (direction === 'up' && row === 1) {
       onFirstRowArrowUp?.();
-      return false;
+      return true;
+    }
+
+    if (direction === 'left' && index % gridCols === 0) {
+      return Boolean(onMoveToSidebar?.());
     }
 
     const targetIndexByDirection = {
@@ -30,15 +34,16 @@ function FocusCard({ item, row, index, gridCols, resultCount, onFirstRowArrowUp,
 
     if (targetIndex >= 0 && targetIndex < resultCount) {
       onMoveResult?.(targetIndex);
+      return true;
     }
 
     return false;
-  }, [gridCols, index, onFirstRowArrowUp, onMoveResult, resultCount, row]);
+  }, [gridCols, index, onFirstRowArrowUp, onMoveResult, onMoveToSidebar, resultCount, row]);
 
   const { ref, focused } = useFocusable({
     focusKey: focusKeyForSearchResult(index),
     onEnterPress: () => ref.current?.click?.(),
-    onArrowPress: moveByDirection,
+    onArrowPress: (direction) => (moveByDirection(direction) ? false : true),
   });
   const [poster, setPoster] = useState(FALLBACK);
   const [hasDomFocus, setHasDomFocus] = useState(false);
@@ -57,9 +62,10 @@ function FocusCard({ item, row, index, gridCols, resultCount, onFirstRowArrowUp,
     const direction = directionByKey[event.key];
     if (!direction) return;
 
-    event.preventDefault();
-    event.stopPropagation();
-    moveByDirection(direction);
+    if (moveByDirection(direction)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   }, [moveByDirection]);
 
   useEffect(() => {
@@ -127,7 +133,7 @@ export default function TvSearch() {
   const typingFocusLockRef = useRef(false);
   const latestSearchRequestIdRef = useRef(0);
   const hasRestoredSessionRef = useRef(false);
-  const { focusByKey } = useFocus();
+  const { focusByKey, rememberContentFocus } = useFocus();
   const { ref: searchInputFocusableRef } = useFocusable({
     focusKey: FOCUS_KEYS.SEARCH_INPUT,
   });
@@ -226,11 +232,22 @@ export default function TvSearch() {
   const handleSearchInputFocus = useCallback(() => {
     typingFocusLockRef.current = true;
     focusByKey?.(FOCUS_KEYS.SEARCH_INPUT);
+    rememberContentFocus?.(FOCUS_KEYS.SEARCH_INPUT);
+  }, [focusByKey, rememberContentFocus]);
+
+  const focusSearchSidebar = useCallback(() => {
+    typingFocusLockRef.current = false;
+    return Boolean(focusByKey?.(`${FOCUS_KEYS.SIDEBAR}_SEARCH`));
   }, [focusByKey]);
 
   const rememberResult = useCallback((slug) => {
     saveTvSearchSession({ lastFocusedSlug: slug, scrollY: window.scrollY || 0 });
   }, []);
+
+  const rememberResultFocus = useCallback((slug, index) => {
+    rememberResult(slug);
+    rememberContentFocus?.(focusKeyForSearchResult(index));
+  }, [rememberContentFocus, rememberResult]);
 
   useEffect(() => {
     if (results.length === 0) return undefined;
@@ -344,7 +361,8 @@ export default function TvSearch() {
                   resultCount={results.length}
                   onFirstRowArrowUp={focusSearchInput}
                   onMoveResult={focusResultByIndex}
-                  onRememberResult={rememberResult}
+                  onMoveToSidebar={focusSearchSidebar}
+                  onRememberResult={(slug) => rememberResultFocus(slug, idx)}
                 />
               );
             })}

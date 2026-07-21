@@ -4,6 +4,42 @@ import { render, screen } from '@testing-library/react';
 import { FocusProvider } from '../../context/FocusContext';
 import EpisodeListItem from './EpisodeListItem';
 
+jest.mock('@noriginmedia/norigin-spatial-navigation', () => {
+  const React = require('react');
+  const registry = new Map();
+
+  const setFocus = jest.fn((focusKey) => {
+    registry.get(focusKey)?.focus?.();
+    return Promise.resolve();
+  });
+
+  return {
+    __esModule: true,
+    destroy: jest.fn(() => registry.clear()),
+    doesFocusableExist: jest.fn((focusKey) => registry.has(focusKey)),
+    getCurrentFocusKey: jest.fn(() => null),
+    init: jest.fn(),
+    setFocus,
+    useFocusable: jest.fn(({ focusKey } = {}) => {
+      const ref = React.useRef(null);
+
+      React.useEffect(() => {
+        if (!focusKey || !ref.current) return undefined;
+        registry.set(focusKey, ref.current);
+        return () => registry.delete(focusKey);
+      });
+
+      return {
+        ref,
+        focused: false,
+        hasFocusedChild: false,
+        focusKey,
+        focusSelf: () => setFocus(focusKey),
+      };
+    }),
+  };
+});
+
 const mockEpisode = {
   name: 'Tập 1',
   slug: 'tap-1',

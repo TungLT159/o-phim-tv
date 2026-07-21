@@ -7,10 +7,18 @@ import {
   getRecentInProgressMovies,
   getRecentInProgressMoviesSnapshot,
 } from "../../utils/watchHistoryManager";
-import { useFocusable } from "../../context/FocusContext";
+import { useFocus, useFocusable } from "../../context/FocusContext";
 import { fetchTMDBImages } from "../../utils/tmdbImageFetcher";
 
 jest.mock("../../context/FocusContext", () => ({
+  FOCUS_KEYS: {
+    HOME_HERO_PLAY: "HOME_HERO_PLAY",
+  },
+  focusKeyForHomeCard: (rowId, index) => `HOME_CARD_${rowId}_${index}`,
+  useFocus: jest.fn(() => ({
+    focusByKey: jest.fn(),
+    rememberContentFocus: jest.fn(),
+  })),
   useFocusable: jest.fn(() => ({
     ref: { current: null },
     focused: false,
@@ -97,6 +105,11 @@ beforeEach(() => {
     cloneItems(mockRecentInProgressMoviesSnapshot),
   );
   localStorage.clear();
+  useFocus.mockClear();
+  useFocus.mockImplementation(() => ({
+    focusByKey: jest.fn(),
+    rememberContentFocus: jest.fn(),
+  }));
   useFocusable.mockClear();
   useFocusable.mockImplementation(() => ({
     ref: { current: null },
@@ -201,11 +214,15 @@ test("registers continue watching cards as TV focus targets through ContentRow",
   renderTvContinueWatchingList();
 
   expect(useFocusable).toHaveBeenCalledTimes(2);
-  expect(useFocusable).toHaveBeenCalledWith(1, 0, 0);
-  expect(useFocusable).toHaveBeenCalledWith(1, 0, 1);
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_continue-watching_0",
+  }));
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_continue-watching_1",
+  }));
 });
 
-test("passes custom TV focus zone through ContentRow", () => {
+test("keeps continue watching TV focus keys stable with a custom zone", () => {
   seedHistory([
     makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
     makeHistoryItem({ movieId: "movie-2", title: "Second Movie" }),
@@ -214,14 +231,18 @@ test("passes custom TV focus zone through ContentRow", () => {
   renderTvContinueWatchingListInZone(5);
 
   expect(useFocusable).toHaveBeenCalledTimes(2);
-  expect(useFocusable).toHaveBeenCalledWith(5, 0, 0);
-  expect(useFocusable).toHaveBeenCalledWith(5, 0, 1);
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_continue-watching_0",
+  }));
+  expect(useFocusable).toHaveBeenCalledWith(expect.objectContaining({
+    focusKey: "HOME_CARD_continue-watching_1",
+  }));
 });
 
 test("marks the focused TV continue watching card", () => {
-  useFocusable.mockImplementation((zone, row, col) => ({
+  useFocusable.mockImplementation((config = {}) => ({
     ref: { current: null },
-    focused: zone === 1 && row === 0 && col === 1,
+    focused: config.focusKey === "HOME_CARD_continue-watching_1",
   }));
   seedHistory([
     makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
@@ -245,9 +266,9 @@ test("scrolls the focused TV continue watching card into view", () => {
     get: () => ({ scrollIntoView }),
     set: () => {},
   });
-  useFocusable.mockImplementation((zone, row, col) => ({
-    ref: zone === 1 && row === 0 && col === 1 ? focusedCardRef : { current: null },
-    focused: zone === 1 && row === 0 && col === 1,
+  useFocusable.mockImplementation((config = {}) => ({
+    ref: config.focusKey === "HOME_CARD_continue-watching_1" ? focusedCardRef : { current: null },
+    focused: config.focusKey === "HOME_CARD_continue-watching_1",
   }));
   seedHistory([
     makeHistoryItem({ movieId: "movie-1", title: "First Movie" }),
